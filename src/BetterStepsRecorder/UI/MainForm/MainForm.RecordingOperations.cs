@@ -77,6 +77,7 @@ namespace BetterStepsRecorder
             Listbox_Events.Items.Clear();
             EnableDisable_exportToolStripMenuItem();
             propertyGrid_RecordEvent.SelectedObject = null;
+            pictureBox1.Image?.Dispose();
             pictureBox1.Image = null;
             richTextBox_stepText.Text = null;
         }

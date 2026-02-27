@@ -73,8 +73,8 @@ namespace BetterStepsRecorder.Exporters
         /// <param name="filePath">The full path to a file</param>
         protected void EnsureDirectoryExists(string filePath)
         {
-            string directory = Path.GetDirectoryName(filePath);
-            if (!Directory.Exists(directory))
+            string? directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }

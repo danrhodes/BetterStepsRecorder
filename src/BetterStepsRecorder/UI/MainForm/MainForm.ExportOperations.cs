@@ -88,7 +88,7 @@ namespace BetterStepsRecorder
             else
             {
                 exportToolStripMenuItem.Enabled = false;
-                toolStripMenuItem1_SaveAs.Enabled = true;
+                toolStripMenuItem1_SaveAs.Enabled = false;
             }
         }
     }

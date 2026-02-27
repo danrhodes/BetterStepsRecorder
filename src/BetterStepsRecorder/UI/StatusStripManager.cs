@@ -11,7 +11,8 @@ namespace BetterStepsRecorder.UI
     {
         private readonly StatusStrip _statusStrip;
         private readonly ToolStripStatusLabel _statusLabel;
-        private readonly System.Windows.Forms.Timer _fadeTimer;  // Explicitly use System.Windows.Forms.Timer
+        private readonly System.Windows.Forms.Timer _fadeTimer;
+        private readonly System.Windows.Forms.Timer _displayTimer;
         private float _opacity = 1.0f;
         private const float FADE_STEP = 0.05f;
         private const int FADE_INTERVAL = 50; // milliseconds
@@ -40,12 +41,24 @@ namespace BetterStepsRecorder.UI
             parentForm.Controls.Add(_statusStrip);
 
             // Create and configure the fade timer
-            _fadeTimer = new System.Windows.Forms.Timer  // Explicitly use System.Windows.Forms.Timer
+            _fadeTimer = new System.Windows.Forms.Timer
             {
                 Interval = FADE_INTERVAL,
                 Enabled = false
             };
             _fadeTimer.Tick += FadeTimer_Tick;
+
+            // Single reusable display timer — stopped and restarted on each ShowMessage call
+            _displayTimer = new System.Windows.Forms.Timer
+            {
+                Interval = MESSAGE_DISPLAY_TIME,
+                Enabled = false
+            };
+            _displayTimer.Tick += (sender, e) =>
+            {
+                _displayTimer.Stop();
+                _fadeTimer.Start();
+            };
         }
 
         /// <summary>
@@ -55,32 +68,20 @@ namespace BetterStepsRecorder.UI
         /// <param name="isError">Whether the message is an error (displayed in red)</param>
         public void ShowMessage(string message, bool isError = false)
         {
-            // Reset any ongoing fade
+            // Stop any in-progress fade or pending display timer before restarting
             _fadeTimer.Stop();
+            _displayTimer.Stop();
             _opacity = 1.0f;
 
             // Set the message and color
             _statusLabel.Text = message;
             _statusLabel.ForeColor = isError ? Color.Red : SystemColors.ControlText;
-            
+
             // Ensure the status strip is visible
             _statusStrip.Visible = true;
-            
-            // Start the timer to begin fading after the display time
-            System.Windows.Forms.Timer displayTimer = new System.Windows.Forms.Timer  // Explicitly use System.Windows.Forms.Timer
-            {
-                Interval = MESSAGE_DISPLAY_TIME,
-                Enabled = true
-            };
-            
-            displayTimer.Tick += (sender, e) =>
-            {
-                displayTimer.Stop();
-                displayTimer.Dispose();
-                _fadeTimer.Start();
-            };
-            
-            displayTimer.Start();
+
+            // Start the display timer; it will kick off the fade when it fires
+            _displayTimer.Start();
         }
 
         /// <summary>
@@ -89,32 +90,20 @@ namespace BetterStepsRecorder.UI
         /// <param name="message">The success message to display</param>
         public void ShowSuccess(string message)
         {
-            // Reset any ongoing fade
+            // Stop any in-progress fade or pending display timer before restarting
             _fadeTimer.Stop();
+            _displayTimer.Stop();
             _opacity = 1.0f;
 
             // Set the message and color
             _statusLabel.Text = message;
             _statusLabel.ForeColor = Color.Green;
-            
+
             // Ensure the status strip is visible
             _statusStrip.Visible = true;
-            
-            // Start the timer to begin fading after the display time
-            System.Windows.Forms.Timer displayTimer = new System.Windows.Forms.Timer  // Explicitly use System.Windows.Forms.Timer
-            {
-                Interval = MESSAGE_DISPLAY_TIME,
-                Enabled = true
-            };
-            
-            displayTimer.Tick += (sender, e) =>
-            {
-                displayTimer.Stop();
-                displayTimer.Dispose();
-                _fadeTimer.Start();
-            };
-            
-            displayTimer.Start();
+
+            // Start the display timer; it will kick off the fade when it fires
+            _displayTimer.Start();
         }
 
         /// <summary>

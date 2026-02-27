@@ -81,7 +81,7 @@ namespace BetterStepsRecorder.Exporters
                     // Add screenshot if available
                     if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
                     {
-                        string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ID.ToString().Substring(0, 8)}.png";
+                        string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                         string imageFilePath = Path.Combine(imagesFolder, imageFileName);
 
                         // Save the image
@@ -104,8 +104,11 @@ namespace BetterStepsRecorder.Exporters
                 html.AppendLine("</body>");
                 html.AppendLine("</html>");
                 
-                // Write the HTML file
-                File.WriteAllText(filePath, html.ToString());
+                // Write the HTML file directly from the StringBuilder to avoid a full string copy
+                using (var writer = new StreamWriter(filePath, append: false, encoding: Encoding.UTF8))
+                {
+                    writer.Write(html);
+                }
                 
                 ShowExportSuccess(filePath);
                 return true;

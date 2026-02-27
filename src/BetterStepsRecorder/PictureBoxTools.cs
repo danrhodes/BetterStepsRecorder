@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Better_Steps_Recorder
@@ -48,49 +47,97 @@ namespace Better_Steps_Recorder
             if (pictureBox.Image == null)
                 return;
 
-            Bitmap originalBitmap = new Bitmap(pictureBox.Image);
-            Bitmap blurredBitmap = new Bitmap(originalBitmap);
-
-            // Simple box blur
-            int blurSize = 10;
-            for (int x = rect.X; x < rect.Right; x += blurSize)
+            using (Bitmap originalBitmap = new Bitmap(pictureBox.Image))
             {
-                for (int y = rect.Y; y < rect.Bottom; y += blurSize)
+                Bitmap blurredBitmap = new Bitmap(originalBitmap);
+
+                int bmpWidth  = originalBitmap.Width;
+                int bmpHeight = originalBitmap.Height;
+
+                // Lock both bitmaps for bulk pixel access — far faster than GetPixel/SetPixel
+                BitmapData srcData = originalBitmap.LockBits(
+                    new Rectangle(0, 0, bmpWidth, bmpHeight),
+                    ImageLockMode.ReadOnly,
+                    PixelFormat.Format32bppArgb);
+
+                BitmapData dstData = blurredBitmap.LockBits(
+                    new Rectangle(0, 0, bmpWidth, bmpHeight),
+                    ImageLockMode.WriteOnly,
+                    PixelFormat.Format32bppArgb);
+
+                int stride      = srcData.Stride;
+                int byteCount   = stride * bmpHeight;
+                byte[] srcPixels = new byte[byteCount];
+                byte[] dstPixels = new byte[byteCount];
+
+                Marshal.Copy(srcData.Scan0, srcPixels, 0, byteCount);
+                Marshal.Copy(dstData.Scan0, dstPixels, 0, byteCount);
+
+                originalBitmap.UnlockBits(srcData);
+                blurredBitmap.UnlockBits(dstData);
+
+                // Clamp the blur rect to bitmap bounds
+                int blurSize = 10;
+                int xMin = Math.Max(rect.X, 0);
+                int yMin = Math.Max(rect.Y, 0);
+                int xMax = Math.Min(rect.Right, bmpWidth);
+                int yMax = Math.Min(rect.Bottom, bmpHeight);
+
+                // Simple box blur using raw byte arrays (BGRA order for Format32bppArgb)
+                for (int x = xMin; x < xMax; x += blurSize)
                 {
-                    int avgR = 0, avgG = 0, avgB = 0;
-                    int blurPixelCount = 0;
-
-                    // Average color in the blur region
-                    for (int xx = x; xx < x + blurSize && xx < originalBitmap.Width; xx++)
+                    for (int y = yMin; y < yMax; y += blurSize)
                     {
-                        for (int yy = y; yy < y + blurSize && yy < originalBitmap.Height; yy++)
+                        int sumB = 0, sumG = 0, sumR = 0, count = 0;
+
+                        int blockXMax = Math.Min(x + blurSize, xMax);
+                        int blockYMax = Math.Min(y + blurSize, yMax);
+
+                        for (int xx = x; xx < blockXMax; xx++)
                         {
-                            Color pixelColor = originalBitmap.GetPixel(xx, yy);
-                            avgR += pixelColor.R;
-                            avgG += pixelColor.G;
-                            avgB += pixelColor.B;
-                            blurPixelCount++;
+                            for (int yy = y; yy < blockYMax; yy++)
+                            {
+                                int idx = yy * stride + xx * 4;
+                                sumB += srcPixels[idx];
+                                sumG += srcPixels[idx + 1];
+                                sumR += srcPixels[idx + 2];
+                                count++;
+                            }
                         }
-                    }
 
-                    // Calculate the average color
-                    avgR /= blurPixelCount;
-                    avgG /= blurPixelCount;
-                    avgB /= blurPixelCount;
+                        if (count == 0) continue;
 
-                    // Set the color of the blur region
-                    for (int xx = x; xx < x + blurSize && xx < originalBitmap.Width; xx++)
-                    {
-                        for (int yy = y; yy < y + blurSize && yy < originalBitmap.Height; yy++)
+                        byte avgB = (byte)(sumB / count);
+                        byte avgG = (byte)(sumG / count);
+                        byte avgR = (byte)(sumR / count);
+
+                        for (int xx = x; xx < blockXMax; xx++)
                         {
-                            blurredBitmap.SetPixel(xx, yy, Color.FromArgb(avgR, avgG, avgB));
+                            for (int yy = y; yy < blockYMax; yy++)
+                            {
+                                int idx = yy * stride + xx * 4;
+                                dstPixels[idx]     = avgB;
+                                dstPixels[idx + 1] = avgG;
+                                dstPixels[idx + 2] = avgR;
+                                // preserve alpha (idx + 3) unchanged from src
+                                dstPixels[idx + 3] = srcPixels[idx + 3];
+                            }
                         }
                     }
                 }
-            }
 
-            // Update PictureBox with blurred image
-            pictureBox.Image = blurredBitmap;
+                // Write the blurred pixels back into the destination bitmap
+                BitmapData writeData = blurredBitmap.LockBits(
+                    new Rectangle(0, 0, bmpWidth, bmpHeight),
+                    ImageLockMode.WriteOnly,
+                    PixelFormat.Format32bppArgb);
+                Marshal.Copy(dstPixels, 0, writeData.Scan0, byteCount);
+                blurredBitmap.UnlockBits(writeData);
+
+                // Dispose the old image before replacing it, then assign the blurred result
+                pictureBox.Image?.Dispose();
+                pictureBox.Image = blurredBitmap;
+            }
         }
 
     }
