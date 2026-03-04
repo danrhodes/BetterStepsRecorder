@@ -26,6 +26,7 @@ namespace BetterStepsRecorder
         public static ZipFileHandler? zip;
 
         public static List<RecordEvent> _recordEvents = new List<RecordEvent>();
+        public static readonly object _recordEventsLock = new object();
         private static MainForm? _form1Instance;
         public static int EventCounter = 1;
 

@@ -25,6 +25,7 @@ namespace BetterStepsRecorder
                 Program.EventCounter = 1;
                 EnableDisable_exportToolStripMenuItem();
                 propertyGrid_RecordEvent.SelectedObject = null;
+                pictureBox1.Image?.Dispose();
                 pictureBox1.Image = null;
                 richTextBox_stepText.Text = null;
             }
@@ -43,6 +44,7 @@ namespace BetterStepsRecorder
             if (zipFilePath != null && zipFilePath != "")
             {
                 propertyGrid_RecordEvent.SelectedObject = null;
+                pictureBox1.Image?.Dispose();
                 pictureBox1.Image = null;
                 richTextBox_stepText.Text = null;
                 EnableRecording();
@@ -100,8 +102,15 @@ namespace BetterStepsRecorder
         /// </summary>
         private void helpToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            HelpPopup helpPopup = new HelpPopup();
-            helpPopup.Show();
+            if (_helpPopup == null || _helpPopup.IsDisposed)
+            {
+                _helpPopup = new HelpPopup();
+                _helpPopup.Show(this);
+            }
+            else
+            {
+                _helpPopup.BringToFront();
+            }
         }
     }
 }

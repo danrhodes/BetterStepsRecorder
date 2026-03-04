@@ -53,18 +53,14 @@ namespace BetterStepsRecorder
             ShellExecuteEx(ref info);
         }
 
-        public static Process OpenWithDefaultProgram(string filePath)
+        public static Process? OpenWithDefaultProgram(string filePath)
         {
-            string programPath = @"C:\Program Files\ShareX\ShareX.exe";
-            string arguments = $"-ImageEditor {filePath}";
-
-            Process process = Process.Start(new ProcessStartInfo
+            // UseShellExecute = true opens the file with the system default application
+            return Process.Start(new ProcessStartInfo
             {
-                FileName = programPath,
-                Arguments = arguments,
-                UseShellExecute = false
+                FileName = filePath,
+                UseShellExecute = true
             });
-            return process;
         }
     }
 }

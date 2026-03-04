@@ -19,15 +19,20 @@ namespace BetterStepsRecorder
         public const int SRCCOPY = 0x00CC0020;
         private const uint GA_ROOT = 2;
         private static UIA3Automation? _automation;
+        private static readonly object _automationLock = new object();
 
-        // Get or initialize the automation instance
+        // Get or initialize the automation instance (thread-safe)
         public static UIA3Automation Automation
         {
             get
             {
                 if (_automation == null)
                 {
-                    _automation = new UIA3Automation();
+                    lock (_automationLock)
+                    {
+                        if (_automation == null)
+                            _automation = new UIA3Automation();
+                    }
                 }
                 return _automation;
             }
@@ -249,8 +254,10 @@ namespace BetterStepsRecorder
 
             try
             {
-                Process process = Process.GetProcessById((int)processId);
-                return process.ProcessName;
+                using (Process process = Process.GetProcessById((int)processId))
+                {
+                    return process.ProcessName;
+                }
             }
             catch (ArgumentException)
             {

@@ -235,7 +235,7 @@ namespace BetterStepsRecorder.UI.Dialogs
                         // Find and select the new folder
                         foreach (TreeNode childNode in currentNode.Nodes)
                         {
-                            if (childNode.Tag.ToString() == newFolderPath)
+                            if (childNode.Tag?.ToString() == newFolderPath)
                             {
                                 folderTreeView.SelectedNode = childNode;
                                 break;

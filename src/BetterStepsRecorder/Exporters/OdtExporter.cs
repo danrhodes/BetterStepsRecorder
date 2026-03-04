@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Drawing;
@@ -38,17 +39,17 @@ namespace BetterStepsRecorder.Exporters
                     
                     // Create manifest file
                     CreateManifestFile(tempDir);
-                    
+
+                    // Save images first — returns cached dimensions so CreateContentFile doesn't decode again
+                    var imageDimensions = SaveImages(tempDir);
+
                     // Create content files
-                    CreateContentFile(tempDir);
+                    CreateContentFile(tempDir, imageDimensions);
                     CreateStylesFile(tempDir);
                     CreateMetaFile(tempDir);
-                    
+
                     // Create mimetype file
                     File.WriteAllText(Path.Combine(tempDir, "mimetype"), "application/vnd.oasis.opendocument.text");
-                    
-                    // Save images
-                    SaveImages(tempDir);
                     
                     // Create the ODT file (ZIP)
                     if (File.Exists(filePath))
@@ -116,7 +117,7 @@ namespace BetterStepsRecorder.Exporters
                 {
                     if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
                     {
-                        string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ID.ToString().Substring(0, 8)}.png";
+                        string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                         
                         writer.WriteStartElement("file-entry", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0");
                         writer.WriteAttributeString("media-type", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0", "image/png");
@@ -130,7 +131,7 @@ namespace BetterStepsRecorder.Exporters
             }
         }
         
-        private void CreateContentFile(string tempDir)
+        private void CreateContentFile(string tempDir, Dictionary<Guid, Size> imageDimensions)
         {
             string contentPath = Path.Combine(tempDir, "content.xml");
             
@@ -304,10 +305,10 @@ namespace BetterStepsRecorder.Exporters
                     // Add screenshot if available
                     if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
                     {
-                        string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ID.ToString().Substring(0, 8)}.png";
+                        string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                         
-                        // Get image dimensions for proper aspect ratio
-                        Size imageSize = GetImageDimensions(recordEvent.Screenshotb64);
+                        // Look up pre-computed dimensions (avoid re-decoding the image)
+                        Size imageSize = imageDimensions.TryGetValue(recordEvent.ID, out var dim) ? dim : new Size(800, 600);
                         float aspectRatio = (float)imageSize.Width / imageSize.Height;
                         
                         // Calculate dimensions to fit within page while maintaining aspect ratio
@@ -504,27 +505,27 @@ namespace BetterStepsRecorder.Exporters
             }
         }
         
-        private void SaveImages(string tempDir)
+        private Dictionary<Guid, Size> SaveImages(string tempDir)
         {
             string imagesFolder = Path.Combine(tempDir, "Pictures");
-            
+            var dimensions = new Dictionary<Guid, Size>();
+
             foreach (var recordEvent in Program._recordEvents)
             {
                 if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
                 {
-                    string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ID.ToString().Substring(0, 8)}.png";
+                    string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                     string imageFilePath = Path.Combine(imagesFolder, imageFileName);
-                    
+
                     try
                     {
-                        // Convert base64 to image and save
+                        // Decode once: save the file and capture dimensions in a single pass
                         byte[] imageBytes = Convert.FromBase64String(recordEvent.Screenshotb64);
                         using (var ms = new MemoryStream(imageBytes))
+                        using (var image = new Bitmap(ms))
                         {
-                            using (var image = Image.FromStream(ms))
-                            {
-                                image.Save(imageFilePath, ImageFormat.Png);
-                            }
+                            dimensions[recordEvent.ID] = new Size(image.Width, image.Height);
+                            image.Save(imageFilePath, ImageFormat.Png);
                         }
                     }
                     catch (Exception ex)
@@ -533,6 +534,8 @@ namespace BetterStepsRecorder.Exporters
                     }
                 }
             }
+
+            return dimensions;
         }
         
         private Size GetImageDimensions(string base64String)

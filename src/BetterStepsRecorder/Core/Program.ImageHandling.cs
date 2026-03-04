@@ -19,37 +19,31 @@ namespace BetterStepsRecorder
         /// <param name="height">Height of the region to capture</param>
         /// <param name="eventId">ID of the associated record event</param>
         /// <returns>Base64 string representation of the screenshot, or null if capture failed</returns>
-        public static string? SaveScreenRegionScreenshot(int x, int y, int width, int height, Guid eventId)
+        public static string? SaveScreenRegionScreenshot(int x, int y, int width, int height, Guid eventId, POINT cursorPos)
         {
             try
             {
                 // Create a bitmap of the specified size
-                Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-
-                // Create graphics object from the bitmap
-                using (Graphics gfx = Graphics.FromImage(bmp))
+                using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb))
                 {
-                    // Copy the specified screen area to the bitmap
-                    gfx.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(width, height), CopyPixelOperation.SourceCopy);
+                    // Create graphics object from the bitmap
+                    using (Graphics gfx = Graphics.FromImage(bmp))
+                    {
+                        // Copy the specified screen area to the bitmap
+                        gfx.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(width, height), CopyPixelOperation.SourceCopy);
 
-                    // Draw an arrow pointing at the cursor
-                    DrawArrowAtCursor(gfx, width, height, x, y);
-                }
+                        // Draw an arrow pointing at the click position (use snapshotted coords, not live cursor)
+                        DrawArrowAtCursor(gfx, width, height, x, y, cursorPos);
+                    }
 
-                // Convert the bitmap to a memory stream
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    bmp.Save(ms, ImageFormat.Png);
-                    byte[] imageBytes = ms.ToArray();
+                    // Convert the bitmap to a memory stream
+                    using (MemoryStream ms = new MemoryStream())
+                    {
+                        bmp.Save(ms, ImageFormat.Png);
 
-                    // Convert byte array to Base64 string
-                    string base64String = Convert.ToBase64String(imageBytes);
-
-                    // Dispose of the bitmap
-                    bmp.Dispose();
-
-                    // Return the Base64 string
-                    return base64String;
+                        // Convert byte array to Base64 string
+                        return Convert.ToBase64String(ms.ToArray());
+                    }
                 }
             }
             catch (Exception ex)
@@ -67,19 +61,10 @@ namespace BetterStepsRecorder
         /// <param name="height">Height of the bitmap</param>
         /// <param name="offsetX">X offset of the bitmap</param>
         /// <param name="offsetY">Y offset of the bitmap</param>
-        private static void DrawArrowAtCursor(Graphics gfx, int width, int height, int offsetX, int offsetY)
+        private static void DrawArrowAtCursor(Graphics gfx, int width, int height, int offsetX, int offsetY, POINT cursorPos)
         {
-            // Define the arrow properties
-            Pen arrowPen = new Pen(Color.Magenta, 5);
-            arrowPen.EndCap = System.Drawing.Drawing2D.LineCap.Custom;
-            arrowPen.CustomEndCap = new System.Drawing.Drawing2D.AdjustableArrowCap(5, 5); // Bigger arrow head
-
             // Define the length of the arrow
             int arrowLength = 200;
-
-            // Get the current cursor position
-            POINT cursorPos;
-            GetCursorPos(out cursorPos);
 
             // Convert the screen coordinates to bitmap coordinates
             int cursorX = cursorPos.X - offsetX;
@@ -100,8 +85,14 @@ namespace BetterStepsRecorder
                 endY = cursorY - arrowLength;
             }
 
-            // Draw the arrow
-            gfx.DrawLine(arrowPen, endX, endY, cursorX, cursorY);
+            // Draw the arrow — both Pen and AdjustableArrowCap are IDisposable GDI objects
+            using (var arrowCap = new System.Drawing.Drawing2D.AdjustableArrowCap(5, 5))
+            using (var arrowPen = new Pen(Color.Magenta, 5))
+            {
+                arrowPen.EndCap = System.Drawing.Drawing2D.LineCap.Custom;
+                arrowPen.CustomEndCap = arrowCap;
+                gfx.DrawLine(arrowPen, endX, endY, cursorX, cursorY);
+            }
         }
 
         /// <summary>
@@ -112,10 +103,10 @@ namespace BetterStepsRecorder
         public static Image Base64ToImage(string base64String)
         {
             byte[] imageBytes = Convert.FromBase64String(base64String);
-            using (var ms = new MemoryStream(imageBytes, 0, imageBytes.Length))
+            using (var ms = new MemoryStream(imageBytes))
             {
-                ms.Write(imageBytes, 0, imageBytes.Length);
-                return Image.FromStream(ms, true);
+                // Return a Bitmap (stream-independent copy) so the stream can be safely disposed
+                return new Bitmap(ms);
             }
         }
 

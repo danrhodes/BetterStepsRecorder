@@ -39,6 +39,9 @@ namespace BetterStepsRecorder
 
         public string? _StepText { get; set; }
 
+        /// <summary>Returns the first 8 hex characters of the ID for use in filenames.</summary>
+        public string ShortId => ID.ToString("N")[..8];
+
         public override string ToString()
         {
             // Customize the string representation for display in the ListBox

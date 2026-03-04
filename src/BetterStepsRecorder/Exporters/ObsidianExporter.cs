@@ -92,8 +92,7 @@ namespace BetterStepsRecorder.Exporters
                             if (usedImageNames.Contains(imageFileName))
                             {
                                 // Add a shortened GUID to make the filename unique
-                                string shortGuid = recordEvent.ID.ToString().Substring(0, 8);
-                                imageFileName = $"{baseImageName}_{shortGuid}.png";
+                                imageFileName = $"{baseImageName}_{recordEvent.ShortId}.png";
                             }
                             
                             usedImageNames.Add(imageFileName);
@@ -172,9 +171,10 @@ namespace BetterStepsRecorder.Exporters
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     // If there's any error reading the JSON, fall back to default
+                    System.Diagnostics.Debug.WriteLine($"Failed to read Obsidian vault settings: {ex.Message}");
                 }
             }
 

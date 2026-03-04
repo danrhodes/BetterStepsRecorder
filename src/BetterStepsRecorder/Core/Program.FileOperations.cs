@@ -21,8 +21,8 @@ namespace BetterStepsRecorder
                 {
                     using (ZipArchive archive = ZipFile.OpenRead(filePath))
                     {
-                        _recordEvents = new List<RecordEvent>();
-                        _form1Instance?.Invoke((Action)(() => _form1Instance.ClearListBox()));
+                        var loadedEvents = new List<RecordEvent>();
+                        EventCounter = 0;
                         foreach (ZipArchiveEntry entry in archive.Entries)
                         {
                             if (Path.GetDirectoryName(entry.FullName) == "events" && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
@@ -34,7 +34,7 @@ namespace BetterStepsRecorder
 
                                     if (recordEvent != null)
                                     {
-                                        _recordEvents.Add(recordEvent);
+                                        loadedEvents.Add(recordEvent);
                                         EventCounter++;
                                     }
                                 }
@@ -42,10 +42,17 @@ namespace BetterStepsRecorder
                         }
 
                         // Sort the events by the Step attribute
-                        _recordEvents.Sort((x, y) => x.Step.CompareTo(y.Step));
+                        loadedEvents.Sort((x, y) => x.Step.CompareTo(y.Step));
 
-                        // Update the UI with the sorted list
-                        foreach (var recordEvent in _recordEvents)
+                        // Atomically replace the list so the hook thread never sees a partial state
+                        lock (_recordEventsLock)
+                        {
+                            _recordEvents = loadedEvents;
+                        }
+
+                        // Update the UI — clear then populate
+                        _form1Instance?.Invoke((Action)(() => _form1Instance.ClearListBox()));
+                        foreach (var recordEvent in loadedEvents)
                         {
                             _form1Instance?.Invoke((Action)(() => _form1Instance.AddRecordEventToListBox(recordEvent)));
                         }

@@ -29,17 +29,25 @@ namespace BetterStepsRecorder
         public void SaveToZip()
         {
             Debug.WriteLine(DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "_SAVED");
+
+            // Snapshot the list under the lock so the hook thread can't mutate it mid-save
+            List<RecordEvent> snapshot;
+            lock (Program._recordEventsLock)
+            {
+                snapshot = new List<RecordEvent>(Program._recordEvents);
+            }
+
             using (var zip = ZipFile.Open(ZipFilePath, ZipArchiveMode.Update))
             {
                 var existingEntries = new HashSet<string>(zip.Entries.Select(e => e.FullName));
                 var validEntries = new HashSet<string>();
 
-                for (int i = 0; i < Program._recordEvents.Count; i++)
+                for (int i = 0; i < snapshot.Count; i++)
                 {
                     // Update the Step based on the list position
-                    Program._recordEvents[i].Step = i + 1;
+                    snapshot[i].Step = i + 1;
 
-                    var eventEntryName = $"events/event_{Program._recordEvents[i].ID}.json";
+                    var eventEntryName = $"events/event_{snapshot[i].ID}.json";
 
                     // Check if the entry already exists and remove it
                     var existingEntry = zip.GetEntry(eventEntryName);
@@ -53,14 +61,12 @@ namespace BetterStepsRecorder
                     using (var entryStream = eventEntry.Open())
                     using (var writer = new StreamWriter(entryStream))
                     {
-                        string json = JsonSerializer.Serialize(Program._recordEvents[i]);
+                        string json = JsonSerializer.Serialize(snapshot[i]);
                         writer.Write(json);
                     }
 
                     // Add the new entry to the set of valid entries
                     validEntries.Add(eventEntryName);
-
-                    // Check for and add screenshot if not already processed
                 }
 
                 // Remove entries from the zip archive that are not in validEntries

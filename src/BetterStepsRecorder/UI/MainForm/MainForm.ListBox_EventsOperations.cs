@@ -41,19 +41,23 @@ namespace BetterStepsRecorder
                         // Create a MemoryStream from the byte array
                         using (MemoryStream ms = new MemoryStream(imageBytes))
                         {
-                            // Create a Bitmap from the MemoryStream and set it to the PictureBox
+                            // Dispose the previous image before replacing to avoid GDI handle leaks
+                            var oldImage = pictureBox1.Image;
                             pictureBox1.Image = new Bitmap(ms);
+                            oldImage?.Dispose();
                         }
                     }
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"Failed to load image from Base64 string: {ex.Message}");
-                        pictureBox1.Image = null; // Clear the image if there was an error
+                        pictureBox1.Image?.Dispose();
+                        pictureBox1.Image = null;
                     }
                 }
                 else
                 {
-                    pictureBox1.Image = null; // Clear the image if there's no Base64 string
+                    pictureBox1.Image?.Dispose();
+                    pictureBox1.Image = null;
                 }
 
                 // Set the step text
@@ -144,7 +148,7 @@ namespace BetterStepsRecorder
         /// </summary>
         private void Listbox_Events_DragEnter(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(typeof(string)))
+            if (e.Data.GetDataPresent(typeof(RecordEvent)))
             {
                 e.Effect = DragDropEffects.Move;
             }
