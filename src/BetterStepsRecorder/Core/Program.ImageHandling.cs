@@ -61,6 +61,8 @@ namespace BetterStepsRecorder
         /// <param name="height">Height of the bitmap</param>
         /// <param name="offsetX">X offset of the bitmap</param>
         /// <param name="offsetY">Y offset of the bitmap</param>
+        public static Color ArrowColor { get; set; } = Color.Magenta;
+
         private static void DrawArrowAtCursor(Graphics gfx, int width, int height, int offsetX, int offsetY, POINT cursorPos)
         {
             // Define the length of the arrow
@@ -87,7 +89,7 @@ namespace BetterStepsRecorder
 
             // Draw the arrow — both Pen and AdjustableArrowCap are IDisposable GDI objects
             using (var arrowCap = new System.Drawing.Drawing2D.AdjustableArrowCap(5, 5))
-            using (var arrowPen = new Pen(Color.Magenta, 5))
+            using (var arrowPen = new Pen(ArrowColor, 5))
             {
                 arrowPen.EndCap = System.Drawing.Drawing2D.LineCap.Custom;
                 arrowPen.CustomEndCap = arrowCap;

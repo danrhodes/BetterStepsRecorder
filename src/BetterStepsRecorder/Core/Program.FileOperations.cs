@@ -111,12 +111,9 @@ namespace BetterStepsRecorder
         {
             try
             {
-                // Check if we have a valid zip file handler
+                // Nothing to save if no file is open yet
                 if (zip == null)
-                {
-                    MessageBox.Show("No file is currently open for saving.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
-                }
                 
                 // Save all current record events to the zip file
                 zip.SaveToZip();

@@ -98,6 +98,20 @@ namespace BetterStepsRecorder
         }
 
         /// <summary>
+        /// Opens a colour picker to change the annotation arrow colour
+        /// </summary>
+        private void arrowColourToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new ColorDialog())
+            {
+                dlg.Color = Program.ArrowColor;
+                dlg.FullOpen = true;
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                    Program.ArrowColor = dlg.Color;
+            }
+        }
+
+        /// <summary>
         /// Shows the help popup
         /// </summary>
         private void helpToolStripMenuItem_Click(object sender, EventArgs e)

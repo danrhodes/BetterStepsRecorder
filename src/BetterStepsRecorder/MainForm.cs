@@ -2,9 +2,6 @@ using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.Text.Json;
 
-// Remove this line: using System.Windows.Automation;
-using System.Windows.Forms;
-// Add FlaUI imports if needed:
 using FlaUI.Core.AutomationElements;
 using System.Windows.Forms;
 using ListBox = System.Windows.Forms.ListBox;
@@ -48,6 +45,16 @@ namespace BetterStepsRecorder
             DisableRecording();
         }
 
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.Z) && undoToolStripButton.Enabled)
+            {
+                undoToolStripButton_Click(this, EventArgs.Empty);
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {

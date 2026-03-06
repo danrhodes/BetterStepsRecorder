@@ -99,32 +99,30 @@ namespace BetterStepsRecorder
                         int  UIWidth     = UIrect.Right  - UIrect.Left;
                         int  UIHeight    = UIrect.Bottom - UIrect.Top;
 
-                        // For right-clicks, grab the raw pixels immediately in the hook before
-                        // CallNextHookEx delivers the event and the context menu disappears.
-                        // CopyFromScreen is pure GDI and fast enough to do synchronously here.
-                        Bitmap? rightClickBitmap = null;
-                        if (clickType == "Right Click")
+                        // Grab the raw pixels immediately in the hook before CallNextHookEx
+                        // delivers the event. For left-clicks this captures the dialog/button
+                        // before it dismisses; for right-clicks it captures before the context
+                        // menu disappears. CopyFromScreen is pure GDI and fast enough here.
+                        Bitmap? preClickBitmap = null;
+                        try
                         {
-                            try
-                            {
-                                rightClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                                using (Graphics gfx = Graphics.FromImage(rightClickBitmap))
-                                    gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
-                                        new System.Drawing.Size(windowWidth, windowHeight),
-                                        CopyPixelOperation.SourceCopy);
-                            }
-                            catch
-                            {
-                                rightClickBitmap?.Dispose();
-                                rightClickBitmap = null;
-                            }
+                            preClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                            using (Graphics gfx = Graphics.FromImage(preClickBitmap))
+                                gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
+                                    new System.Drawing.Size(windowWidth, windowHeight),
+                                    CopyPixelOperation.SourceCopy);
+                        }
+                        catch
+                        {
+                            preClickBitmap?.Dispose();
+                            preClickBitmap = null;
                         }
 
                         // Capture a snapshot of all values needed by the background thread
                         var snapshot = (
                             cursorPos, hwnd, windowTitle, applicationName, clickType,
                             UIrect, rect, windowWidth, windowHeight, UIWidth, UIHeight,
-                            rightClickBitmap
+                            preClickBitmap
                         );
 
                         // Offload the slow work (FlaUI UI Automation + PNG encode) to a
@@ -134,7 +132,7 @@ namespace BetterStepsRecorder
                         {
                             var (cp, _, wt, appName, ct,
                                  uiRect, winRect, winW, winH, uiW, uiH,
-                                 rcBitmap) = snapshot;
+                                 preBitmap) = snapshot;
 
                             // FlaUI call — can block for hundreds of ms on complex UIs
                             AutomationElement? element = GetElementFromPoint(
@@ -153,7 +151,7 @@ namespace BetterStepsRecorder
                             // Skip if this click is to our own app
                             if (appName == _ownProcessName)
                             {
-                                rcBitmap?.Dispose();
+                                preBitmap?.Dispose();
                                 return;
                             }
 
@@ -179,18 +177,19 @@ namespace BetterStepsRecorder
                                 _recordEvents.Add(recordEvent);
                             }
 
-                            // Screen capture: right-clicks use the pre-captured bitmap; left-clicks capture now
+                            // Screen capture: use the pre-captured bitmap (taken synchronously before
+                            // CallNextHookEx so dialogs/buttons are still visible), falling back to
+                            // a live capture if the pre-capture failed for any reason.
                             string? screenshotb64;
-                            if (rcBitmap != null)
+                            if (preBitmap != null)
                             {
-                                // Draw the arrow onto the already-captured bitmap, then encode
-                                using (rcBitmap)
+                                using (preBitmap)
                                 {
-                                    using (Graphics gfx = Graphics.FromImage(rcBitmap))
+                                    using (Graphics gfx = Graphics.FromImage(preBitmap))
                                         DrawArrowAtCursor(gfx, winW, winH, winRect.Left, winRect.Top, cp);
                                     using (var ms = new System.IO.MemoryStream())
                                     {
-                                        rcBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                        preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
                                         screenshotb64 = Convert.ToBase64String(ms.ToArray());
                                     }
                                 }

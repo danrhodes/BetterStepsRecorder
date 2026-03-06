@@ -53,7 +53,17 @@
             exportToHtmlToolStripMenuItem = new ToolStripMenuItem();
             exportToOdtToolStripMenuItem = new ToolStripMenuItem();
             exportToObsidianVaultToolStripMenuItem = new ToolStripMenuItem();
+            pictureBoxToolStrip = new ToolStrip();
+            undoToolStripButton = new ToolStripButton();
+            blurRegionToolStripButton = new ToolStripButton();
+            highlightToolStripButton = new ToolStripButton();
+            highlightColourToolStripButton = new ToolStripButton();
+            textLabelToolStripButton = new ToolStripButton();
+            arrowToolStripButton = new ToolStripButton();
+            cropToolStripButton = new ToolStripButton();
             ToolStripMenuItem_Recording = new ToolStripMenuItem();
+            settingsToolStripMenuItem = new ToolStripMenuItem();
+            arrowColourToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             contextMenu_ListBox_Events.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
@@ -68,6 +78,7 @@
             splitContainer3.Panel1.SuspendLayout();
             splitContainer3.Panel2.SuspendLayout();
             splitContainer3.SuspendLayout();
+            pictureBoxToolStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             menuStrip1.SuspendLayout();
             SuspendLayout();
@@ -185,6 +196,7 @@
             // splitContainer3.Panel1
             // 
             splitContainer3.Panel1.Controls.Add(pictureBox1);
+            splitContainer3.Panel1.Controls.Add(pictureBoxToolStrip);
             // 
             // splitContainer3.Panel2
             // 
@@ -217,7 +229,7 @@
             // 
             // menuStrip1
             // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, ToolStripMenuItem_Recording, helpToolStripMenuItem });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, ToolStripMenuItem_Recording, settingsToolStripMenuItem, helpToolStripMenuItem });
             menuStrip1.Location = new Point(0, 0);
             menuStrip1.Name = "menuStrip1";
             menuStrip1.Size = new Size(938, 24);
@@ -311,9 +323,98 @@
             ToolStripMenuItem_Recording.Size = new Size(116, 20);
             ToolStripMenuItem_Recording.Text = "Start Recording";
             ToolStripMenuItem_Recording.Click += ToolStripMenuItem_Recording_Click;
-            // 
+            //
+            // pictureBoxToolStrip
+            //
+            pictureBoxToolStrip.Items.AddRange(new ToolStripItem[] {
+                undoToolStripButton,
+                new ToolStripSeparator(),
+                blurRegionToolStripButton,
+                highlightToolStripButton,
+                highlightColourToolStripButton,
+                new ToolStripSeparator(),
+                textLabelToolStripButton,
+                arrowToolStripButton,
+                new ToolStripSeparator(),
+                cropToolStripButton
+            });
+            pictureBoxToolStrip.Location = new Point(0, 0);
+            pictureBoxToolStrip.Name = "pictureBoxToolStrip";
+            pictureBoxToolStrip.GripStyle = ToolStripGripStyle.Hidden;
+            pictureBoxToolStrip.Dock = DockStyle.Top;
+            pictureBoxToolStrip.BackColor = System.Drawing.SystemColors.Control;
+            //
+            // undoToolStripButton
+            //
+            undoToolStripButton.Name = "undoToolStripButton";
+            undoToolStripButton.Text = "↩ Undo";
+            undoToolStripButton.ToolTipText = "Undo last annotation (Ctrl+Z)";
+            undoToolStripButton.Enabled = false;
+            undoToolStripButton.Click += undoToolStripButton_Click;
+            //
+            // blurRegionToolStripButton
+            //
+            blurRegionToolStripButton.Name = "blurRegionToolStripButton";
+            blurRegionToolStripButton.Text = "Blur";
+            blurRegionToolStripButton.ToolTipText = "Draw a rectangle to blur/redact sensitive info";
+            blurRegionToolStripButton.CheckOnClick = true;
+            blurRegionToolStripButton.Click += blurRegionToolStripButton_Click;
+            //
+            // highlightToolStripButton
+            //
+            highlightToolStripButton.Name = "highlightToolStripButton";
+            highlightToolStripButton.Text = "Highlight";
+            highlightToolStripButton.ToolTipText = "Draw a coloured highlight rectangle";
+            highlightToolStripButton.CheckOnClick = true;
+            highlightToolStripButton.Click += highlightToolStripButton_Click;
+            //
+            // highlightColourToolStripButton
+            //
+            highlightColourToolStripButton.Name = "highlightColourToolStripButton";
+            highlightColourToolStripButton.Text = "🎨";
+            highlightColourToolStripButton.ToolTipText = "Pick highlight colour";
+            highlightColourToolStripButton.Click += highlightColourToolStripButton_Click;
+            //
+            // textLabelToolStripButton
+            //
+            textLabelToolStripButton.Name = "textLabelToolStripButton";
+            textLabelToolStripButton.Text = "Text";
+            textLabelToolStripButton.ToolTipText = "Click to place a text label on the screenshot";
+            textLabelToolStripButton.CheckOnClick = true;
+            textLabelToolStripButton.Click += textLabelToolStripButton_Click;
+            //
+            // arrowToolStripButton
+            //
+            arrowToolStripButton.Name = "arrowToolStripButton";
+            arrowToolStripButton.Text = "Arrow";
+            arrowToolStripButton.ToolTipText = "Draw an arrow on the screenshot";
+            arrowToolStripButton.CheckOnClick = true;
+            arrowToolStripButton.Click += arrowToolStripButton_Click;
+            //
+            // cropToolStripButton
+            //
+            cropToolStripButton.Name = "cropToolStripButton";
+            cropToolStripButton.Text = "Crop";
+            cropToolStripButton.ToolTipText = "Crop the screenshot to the selected area";
+            cropToolStripButton.CheckOnClick = true;
+            cropToolStripButton.Click += cropToolStripButton_Click;
+            //
+            // settingsToolStripMenuItem
+            //
+            settingsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { arrowColourToolStripMenuItem });
+            settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
+            settingsToolStripMenuItem.Size = new Size(61, 20);
+            settingsToolStripMenuItem.Text = "Settings";
+            //
+            // arrowColourToolStripMenuItem
+            //
+            arrowColourToolStripMenuItem.Name = "arrowColourToolStripMenuItem";
+            arrowColourToolStripMenuItem.Size = new Size(160, 22);
+            arrowColourToolStripMenuItem.Text = "Arrow Colour...";
+            arrowColourToolStripMenuItem.Click += arrowColourToolStripMenuItem_Click;
+            //
             // helpToolStripMenuItem
-            // 
+            //
             helpToolStripMenuItem.Name = "helpToolStripMenuItem";
             helpToolStripMenuItem.Size = new Size(44, 20);
             helpToolStripMenuItem.Text = "Help";
@@ -346,6 +447,8 @@
             ((System.ComponentModel.ISupportInitialize)splitContainer3).EndInit();
             splitContainer3.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
+            pictureBoxToolStrip.ResumeLayout(false);
+            pictureBoxToolStrip.PerformLayout();
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             ResumeLayout(false);
@@ -378,5 +481,15 @@
         private ToolStripSeparator toolStripSeparator1;
         private ToolStripMenuItem helpToolStripMenuItem;
         private ToolStripMenuItem exportToObsidianVaultToolStripMenuItem;
+        private ToolStripMenuItem settingsToolStripMenuItem;
+        private ToolStripMenuItem arrowColourToolStripMenuItem;
+        private ToolStrip pictureBoxToolStrip;
+        private ToolStripButton undoToolStripButton;
+        private ToolStripButton blurRegionToolStripButton;
+        private ToolStripButton highlightToolStripButton;
+        private ToolStripButton highlightColourToolStripButton;
+        private ToolStripButton textLabelToolStripButton;
+        private ToolStripButton arrowToolStripButton;
+        private ToolStripButton cropToolStripButton;
     }
 }

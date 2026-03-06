@@ -26,6 +26,8 @@ namespace BetterStepsRecorder
         /// </summary>
         private void Listbox_Events_SelectedIndexChanged(object sender, EventArgs e)
         {
+            ResetImageTools();
+
             if (Listbox_Events.SelectedItem is RecordEvent selectedEvent)
             {
                 propertyGrid_RecordEvent.SelectedObject = selectedEvent;

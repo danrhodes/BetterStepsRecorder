@@ -15,7 +15,6 @@ using System.IO;
 using System.ComponentModel;
 using Debug = System.Diagnostics.Debug;
 using Application = System.Windows.Forms.Application;
-using System.Windows; // Add this for System.Windows.Point
 using BetterStepsRecorder.Exporters;
 using BetterStepsRecorder.UI;
 
