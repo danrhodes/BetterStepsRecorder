@@ -12,6 +12,15 @@ namespace BetterStepsRecorder.Exporters
         private static string HtmlEncode(string value) =>
             value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
 
+        private static string FormatDuration(TimeSpan ts)
+        {
+            if (ts.TotalHours >= 1)
+                return $"{(int)ts.TotalHours}h {ts.Minutes:D2}m {ts.Seconds:D2}s";
+            if (ts.TotalMinutes >= 1)
+                return $"{ts.Minutes}m {ts.Seconds:D2}s";
+            return $"{ts.Seconds}s";
+        }
+
         /// <summary>
         /// Exports the current steps recording to HTML format
         /// </summary>
@@ -22,7 +31,7 @@ namespace BetterStepsRecorder.Exporters
             try
             {
                 EnsureDirectoryExists(filePath);
-                
+
                 // Create images folder
                 string folderPath = Path.GetDirectoryName(filePath);
                 string imagesFolder = Path.Combine(folderPath, "images");
@@ -30,12 +39,23 @@ namespace BetterStepsRecorder.Exporters
                 {
                     Directory.CreateDirectory(imagesFolder);
                 }
-                
+
                 // Get the filename without extension to use as title
                 string title = Path.GetFileNameWithoutExtension(filePath);
-                
+
                 int totalSteps = Program._recordEvents.Count;
                 string generated = DateTime.Now.ToString("dd MMM yyyy, HH:mm");
+
+                // Compute recording start/end/duration from event timestamps
+                DateTime? recordingStart = totalSteps > 0 ? Program._recordEvents[0].CreationTime : (DateTime?)null;
+                DateTime? recordingEnd   = totalSteps > 0 ? Program._recordEvents[totalSteps - 1].CreationTime : (DateTime?)null;
+                TimeSpan  totalDuration  = (recordingStart.HasValue && recordingEnd.HasValue)
+                    ? recordingEnd.Value - recordingStart.Value
+                    : TimeSpan.Zero;
+
+                string startStr    = recordingStart?.ToString("dd MMM yyyy, HH:mm:ss") ?? "—";
+                string endStr      = recordingEnd?.ToString("HH:mm:ss") ?? "—";
+                string durationStr = totalSteps > 1 ? FormatDuration(totalDuration) : "—";
 
                 // Start building the HTML content
                 StringBuilder html = new StringBuilder();
@@ -51,14 +71,24 @@ namespace BetterStepsRecorder.Exporters
                 html.AppendLine("        .page-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color: #fff; padding: 48px 40px 40px; }");
                 html.AppendLine("        .page-header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }");
                 html.AppendLine("        .page-header .meta { font-size: 0.85rem; opacity: 0.65; }");
+                html.AppendLine("        .summary-grid { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }");
+                html.AppendLine("        .summary-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 20px; min-width: 140px; }");
+                html.AppendLine("        .summary-item .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.6; margin-bottom: 4px; }");
+                html.AppendLine("        .summary-item .value { font-size: 1.1rem; font-weight: 600; }");
                 html.AppendLine("        .progress-bar-wrap { background: rgba(255,255,255,0.15); border-radius: 4px; height: 4px; margin-top: 24px; }");
                 html.AppendLine("        .progress-bar-fill { background: #e94560; border-radius: 4px; height: 4px; width: 100%; }");
                 html.AppendLine("        .container { max-width: 960px; margin: 0 auto; padding: 40px 20px 60px; }");
                 html.AppendLine("        .step-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04); margin-bottom: 28px; overflow: hidden; transition: box-shadow 0.2s; }");
                 html.AppendLine("        .step-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.11), 0 2px 6px rgba(0,0,0,0.06); }");
-                html.AppendLine("        .step-header { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }");
+                html.AppendLine("        .step-header { display: flex; align-items: flex-start; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }");
                 html.AppendLine("        .step-badge { background: #e94560; color: #fff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border-radius: 20px; padding: 4px 12px; white-space: nowrap; flex-shrink: 0; }");
+                html.AppendLine("        .step-header-text { flex: 1; }");
                 html.AppendLine("        .step-title { font-size: 0.97rem; font-weight: 500; color: #1a1a2e; line-height: 1.45; }");
+                html.AppendLine("        .step-time { font-size: 0.78rem; color: #888; margin-top: 4px; }");
+                html.AppendLine("        .step-delta { display: inline-block; background: #f0f2f5; border-radius: 10px; padding: 1px 8px; font-size: 0.72rem; color: #555; margin-left: 8px; }");
+                html.AppendLine("        .step-details { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 20px; padding: 14px 24px; background: #f8f9fb; border-bottom: 1px solid #f0f0f0; font-size: 0.82rem; }");
+                html.AppendLine("        .detail-item .detail-label { color: #999; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }");
+                html.AppendLine("        .detail-item .detail-value { color: #1a1a2e; word-break: break-word; }");
                 html.AppendLine("        .step-body { padding: 20px 24px; }");
                 html.AppendLine("        .step-body img { width: 100%; height: auto; border-radius: 8px; border: 1px solid #e8e8e8; display: block; cursor: zoom-in; }");
                 html.AppendLine("        .no-screenshot { color: #aaa; font-size: 0.85rem; font-style: italic; padding: 8px 0; }");
@@ -76,21 +106,55 @@ namespace BetterStepsRecorder.Exporters
                 // Page header
                 html.AppendLine("    <div class=\"page-header\">");
                 html.AppendLine($"        <h1>{HtmlEncode(title)}</h1>");
-                html.AppendLine($"        <div class=\"meta\">{totalSteps} step{(totalSteps == 1 ? "" : "s")} &nbsp;·&nbsp; Generated {generated}</div>");
+                html.AppendLine($"        <div class=\"meta\">Generated {generated}</div>");
+                html.AppendLine("        <div class=\"summary-grid\">");
+                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Steps</div><div class=\"value\">{totalSteps}</div></div>");
+                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Started</div><div class=\"value\">{startStr}</div></div>");
+                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Finished</div><div class=\"value\">{endStr}</div></div>");
+                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Total Duration</div><div class=\"value\">{durationStr}</div></div>");
+                html.AppendLine("        </div>");
                 html.AppendLine("        <div class=\"progress-bar-wrap\"><div class=\"progress-bar-fill\"></div></div>");
                 html.AppendLine("    </div>");
 
                 html.AppendLine("    <div class=\"container\">");
 
                 // Add each step
+                DateTime? prevTime = null;
                 foreach (var recordEvent in Program._recordEvents)
                 {
-                    string stepText = HtmlEncode(recordEvent._StepText ?? string.Empty);
+                    string stepText  = HtmlEncode(recordEvent._StepText ?? string.Empty);
+                    string timeStr;
+                    if (prevTime.HasValue)
+                    {
+                        TimeSpan delta = recordEvent.CreationTime - prevTime.Value;
+                        timeStr = $"{prevTime.Value:HH:mm:ss} → {recordEvent.CreationTime:HH:mm:ss} <span class=\"step-delta\">({FormatDuration(delta)})</span>";
+                    }
+                    else
+                    {
+                        timeStr = recordEvent.CreationTime.ToString("HH:mm:ss");
+                    }
+                    prevTime = recordEvent.CreationTime;
+
                     html.AppendLine("        <div class=\"step-card\">");
                     html.AppendLine("            <div class=\"step-header\">");
                     html.AppendLine($"                <span class=\"step-badge\">Step {recordEvent.Step}</span>");
-                    html.AppendLine($"                <span class=\"step-title\">{stepText}</span>");
+                    html.AppendLine("                <div class=\"step-header-text\">");
+                    html.AppendLine($"                    <div class=\"step-title\">{stepText}</div>");
+                    html.AppendLine($"                    <div class=\"step-time\">{timeStr}</div>");
+                    html.AppendLine("                </div>");
                     html.AppendLine("            </div>");
+
+                    // Detail strip
+                    html.AppendLine("            <div class=\"step-details\">");
+                    AppendDetail(html, "Action", recordEvent.EventType);
+                    AppendDetail(html, "Application", recordEvent.ApplicationName);
+                    AppendDetail(html, "Window", recordEvent.WindowTitle);
+                    AppendDetail(html, "Element", recordEvent.ElementName);
+                    AppendDetail(html, "Element Type", recordEvent.ElementType);
+                    if (recordEvent.MouseCoordinates.X != 0 || recordEvent.MouseCoordinates.Y != 0)
+                        AppendDetail(html, "Mouse Position", $"{recordEvent.MouseCoordinates.X}, {recordEvent.MouseCoordinates.Y}");
+                    html.AppendLine("            </div>");
+
                     html.AppendLine("            <div class=\"step-body\">");
 
                     if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
@@ -132,13 +196,13 @@ namespace BetterStepsRecorder.Exporters
                 // Close the HTML document
                 html.AppendLine("</body>");
                 html.AppendLine("</html>");
-                
+
                 // Write the HTML file directly from the StringBuilder to avoid a full string copy
                 using (var writer = new StreamWriter(filePath, append: false, encoding: Encoding.UTF8))
                 {
                     writer.Write(html);
                 }
-                
+
                 ShowExportSuccess(filePath);
                 return true;
             }
@@ -147,6 +211,12 @@ namespace BetterStepsRecorder.Exporters
                 ShowExportError("Error exporting to HTML", ex);
                 return false;
             }
+        }
+
+        private static void AppendDetail(StringBuilder html, string label, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            html.AppendLine($"                <div class=\"detail-item\"><div class=\"detail-label\">{HtmlEncode(label)}</div><div class=\"detail-value\">{HtmlEncode(value)}</div></div>");
         }
     }
 }

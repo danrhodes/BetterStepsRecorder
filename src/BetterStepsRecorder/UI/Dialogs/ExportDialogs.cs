@@ -186,7 +186,12 @@ namespace BetterStepsRecorder.UI.Dialogs
                 return false;
 
             HtmlExporter exporter = new HtmlExporter();
-            return exporter.Export(filePath);
+            bool success = exporter.Export(filePath);
+            if (success)
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(filePath) { UseShellExecute = true });
+            }
+            return success;
         }
 
         /// <summary>
