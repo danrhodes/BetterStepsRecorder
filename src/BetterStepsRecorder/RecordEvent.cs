@@ -39,6 +39,17 @@ namespace BetterStepsRecorder
 
         public string? _StepText { get; set; }
 
+        /// <summary>
+        /// Path to the spooled PNG on disk. When set, Screenshotb64 is null and the image
+        /// is read from this path on demand instead of being held in RAM.
+        /// </summary>
+        [JsonIgnore]
+        public string? ScreenshotSpoolPath { get; set; }
+
+        /// <summary>True when a screenshot is available either in RAM or via a spool file on disk.</summary>
+        [JsonIgnore]
+        public bool HasScreenshot => !string.IsNullOrEmpty(Screenshotb64) || !string.IsNullOrEmpty(ScreenshotSpoolPath);
+
         /// <summary>Returns the first 8 hex characters of the ID for use in filenames.</summary>
         public string ShortId => ID.ToString("N")[..8];
 

@@ -82,24 +82,18 @@ namespace BetterStepsRecorder.Exporters
                         writer.WriteLine();
 
                         // Process and save image if available
-                        if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                        if (recordEvent.HasScreenshot)
                         {
-                            // Create a simpler image filename without GUID
                             string baseImageName = $"{fileName}_step{recordEvent.Step}";
                             string imageFileName = baseImageName + ".png";
-                            
-                            // Check if this filename is already used, if so, add GUID to make it unique
+
                             if (usedImageNames.Contains(imageFileName))
-                            {
-                                // Add a shortened GUID to make the filename unique
                                 imageFileName = $"{baseImageName}_{recordEvent.ShortId}.png";
-                            }
-                            
+
                             usedImageNames.Add(imageFileName);
                             string imageFilePath = Path.Combine(imageFolderPath, imageFileName);
-                            
-                            // Save the image
-                            SaveImageFromBase64(recordEvent.Screenshotb64, imageFilePath, ImageFormat.Png);
+
+                            SaveImageFromEvent(recordEvent, imageFilePath, ImageFormat.Png);
 
                             // Get the relative path for the image link
                             string relativeImagePath = GetRelativeImagePath(vaultPath, imageFolderPath, imageFileName);

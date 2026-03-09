@@ -98,6 +98,41 @@ namespace BetterStepsRecorder
         }
 
         /// <summary>
+        /// Writes PNG bytes to the session spool directory and returns the file path.
+        /// Returns null if the write fails (caller should fall back to keeping bytes in RAM).
+        /// </summary>
+        public static string? SpoolScreenshot(byte[] pngBytes, Guid eventId)
+        {
+            try
+            {
+                string filePath = Path.Combine(SessionSpoolDir, $"{eventId:N}.png");
+                File.WriteAllBytes(filePath, pngBytes);
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Spool write failed, keeping screenshot in RAM: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads raw PNG bytes for a RecordEvent, whether stored in RAM (Screenshotb64)
+        /// or on disk (ScreenshotSpoolPath). Returns null if neither is available.
+        /// </summary>
+        public static byte[]? GetScreenshotBytes(RecordEvent recordEvent)
+        {
+            if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                return Convert.FromBase64String(recordEvent.Screenshotb64);
+
+            if (!string.IsNullOrEmpty(recordEvent.ScreenshotSpoolPath) &&
+                File.Exists(recordEvent.ScreenshotSpoolPath))
+                return File.ReadAllBytes(recordEvent.ScreenshotSpoolPath);
+
+            return null;
+        }
+
+        /// <summary>
         /// Converts a Base64 string to an Image
         /// </summary>
         /// <param name="base64String">Base64 string representation of the image</param>

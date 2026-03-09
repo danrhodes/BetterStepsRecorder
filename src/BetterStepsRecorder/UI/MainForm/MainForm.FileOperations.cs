@@ -20,6 +20,10 @@ namespace BetterStepsRecorder
             {
                 EnableRecording();
                 Program.zip = new ZipFileHandler(zipFilePath);
+                // Clear spool files from the previous recording session
+                foreach (var ev in Program._recordEvents)
+                    if (!string.IsNullOrEmpty(ev.ScreenshotSpoolPath))
+                        try { File.Delete(ev.ScreenshotSpoolPath); } catch { }
                 Program._recordEvents = new List<RecordEvent>();
                 Listbox_Events.Items.Clear();
                 Program.EventCounter = 1;

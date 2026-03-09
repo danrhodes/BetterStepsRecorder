@@ -115,10 +115,10 @@ namespace BetterStepsRecorder.Exporters
                 // Add image entries
                 foreach (var recordEvent in Program._recordEvents)
                 {
-                    if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                    if (recordEvent.HasScreenshot)
                     {
                         string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ShortId}.png";
-                        
+
                         writer.WriteStartElement("file-entry", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0");
                         writer.WriteAttributeString("media-type", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0", "image/png");
                         writer.WriteAttributeString("full-path", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0", imageFileName);
@@ -303,10 +303,10 @@ namespace BetterStepsRecorder.Exporters
                     }
                     */
                     // Add screenshot if available
-                    if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                    if (recordEvent.HasScreenshot)
                     {
                         string imageFileName = $"Pictures/step_{recordEvent.Step}_{recordEvent.ShortId}.png";
-                        
+
                         // Look up pre-computed dimensions (avoid re-decoding the image)
                         Size imageSize = imageDimensions.TryGetValue(recordEvent.ID, out var dim) ? dim : new Size(800, 600);
                         float aspectRatio = (float)imageSize.Width / imageSize.Height;
@@ -512,20 +512,22 @@ namespace BetterStepsRecorder.Exporters
 
             foreach (var recordEvent in Program._recordEvents)
             {
-                if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                if (recordEvent.HasScreenshot)
                 {
                     string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                     string imageFilePath = Path.Combine(imagesFolder, imageFileName);
 
                     try
                     {
-                        // Decode once: save the file and capture dimensions in a single pass
-                        byte[] imageBytes = Convert.FromBase64String(recordEvent.Screenshotb64);
-                        using (var ms = new MemoryStream(imageBytes))
-                        using (var image = new Bitmap(ms))
+                        byte[]? imageBytes = Program.GetScreenshotBytes(recordEvent);
+                        if (imageBytes != null)
                         {
-                            dimensions[recordEvent.ID] = new Size(image.Width, image.Height);
-                            image.Save(imageFilePath, ImageFormat.Png);
+                            using (var ms = new MemoryStream(imageBytes))
+                            using (var image = new Bitmap(ms))
+                            {
+                                dimensions[recordEvent.ID] = new Size(image.Width, image.Height);
+                                image.Save(imageFilePath, ImageFormat.Png);
+                            }
                         }
                     }
                     catch (Exception ex)

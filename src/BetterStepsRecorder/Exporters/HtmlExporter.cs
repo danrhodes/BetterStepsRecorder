@@ -157,12 +157,12 @@ namespace BetterStepsRecorder.Exporters
 
                     html.AppendLine("            <div class=\"step-body\">");
 
-                    if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                    if (recordEvent.HasScreenshot)
                     {
                         string imageFileName = $"step_{recordEvent.Step}_{recordEvent.ShortId}.png";
                         string imageFilePath = Path.Combine(imagesFolder, imageFileName);
 
-                        if (SaveImageFromBase64(recordEvent.Screenshotb64, imageFilePath))
+                        if (SaveImageFromEvent(recordEvent, imageFilePath))
                         {
                             html.AppendLine($"                <img src=\"images/{imageFileName}\" alt=\"Screenshot for Step {recordEvent.Step}\" onclick=\"openLb(this)\">");
                         }

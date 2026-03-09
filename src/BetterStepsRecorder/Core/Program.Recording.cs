@@ -166,7 +166,7 @@ namespace BetterStepsRecorder
                                     WindowSize         = new Size { Width = winW, Height = winH },
                                     UICoordinates      = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
                                     UISize             = new Size { Width = uiW, Height = uiH },
-                                    UIElement          = element,
+                                    UIElement          = null, // not needed after name/type extracted; releasing COM object
                                     ElementName        = elementName,
                                     ElementType        = elementType,
                                     MouseCoordinates   = new POINT { X = cp.X, Y = cp.Y },
@@ -180,7 +180,8 @@ namespace BetterStepsRecorder
                             // Screen capture: use the pre-captured bitmap (taken synchronously before
                             // CallNextHookEx so dialogs/buttons are still visible), falling back to
                             // a live capture if the pre-capture failed for any reason.
-                            string? screenshotb64;
+                            // PNG bytes are spooled to disk immediately so they don't stay in RAM.
+                            byte[]? pngBytes = null;
                             if (preBitmap != null)
                             {
                                 using (preBitmap)
@@ -190,18 +191,36 @@ namespace BetterStepsRecorder
                                     using (var ms = new System.IO.MemoryStream())
                                     {
                                         preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                                        screenshotb64 = Convert.ToBase64String(ms.ToArray());
+                                        pngBytes = ms.ToArray();
                                     }
                                 }
                             }
                             else
                             {
-                                screenshotb64 = SaveScreenRegionScreenshot(
+                                // Fall back to live capture — returns base64; convert to bytes
+                                string? b64 = SaveScreenRegionScreenshot(
                                     winRect.Left, winRect.Top, winW, winH, recordEvent.ID, cp);
+                                if (b64 != null)
+                                    pngBytes = Convert.FromBase64String(b64);
                             }
 
-                            if (screenshotb64 != null)
-                                recordEvent.Screenshotb64 = screenshotb64;
+                            if (pngBytes != null)
+                            {
+                                // Try to spool to disk; fall back to RAM if spool write fails
+                                string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                if (spoolPath != null)
+                                    recordEvent.ScreenshotSpoolPath = spoolPath;
+                                else
+                                    recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+
+                                // Release the large byte array immediately — it was either written to
+                                // disk or encoded into base64; either way we no longer need the raw bytes.
+                                pngBytes = null;
+                            }
+
+                            // The PNG byte array is large (LOH eligible at >85KB). Nudge the GC to
+                            // collect it promptly rather than waiting for the next scheduled Gen2.
+                            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
 
                             // Marshal UI update back to the UI thread (non-blocking — don't Invoke)
                             _form1Instance?.BeginInvoke((Action)(() =>

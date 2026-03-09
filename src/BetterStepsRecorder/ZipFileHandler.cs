@@ -1,9 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text.Json;
 
 namespace BetterStepsRecorder
@@ -11,7 +10,7 @@ namespace BetterStepsRecorder
     public class ZipFileHandler
     {
         private string? _zipFilePath;
-        
+
         /// <summary>
         /// Gets the full path to the current BSR zip file
         /// </summary>
@@ -37,47 +36,69 @@ namespace BetterStepsRecorder
                 snapshot = new List<RecordEvent>(Program._recordEvents);
             }
 
-            using (var zip = ZipFile.Open(ZipFilePath, ZipArchiveMode.Update))
+            // Write to a temp file using ZipArchiveMode.Create (sequential, low memory) then
+            // atomically replace the real file. This avoids ZipArchiveMode.Update which loads
+            // the entire existing zip into RAM before writing anything.
+            string tempPath = ZipFilePath + ".tmp";
+
+            try
             {
-                var existingEntries = new HashSet<string>(zip.Entries.Select(e => e.FullName));
-                var validEntries = new HashSet<string>();
-
-                for (int i = 0; i < snapshot.Count; i++)
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: false))
                 {
-                    // Update the Step based on the list position
-                    snapshot[i].Step = i + 1;
-
-                    var eventEntryName = $"events/event_{snapshot[i].ID}.json";
-
-                    // Check if the entry already exists and remove it
-                    var existingEntry = zip.GetEntry(eventEntryName);
-                    if (existingEntry != null)
+                    for (int i = 0; i < snapshot.Count; i++)
                     {
-                        existingEntry.Delete(); // Remove the existing entry
-                    }
+                        // Update the Step based on list position
+                        snapshot[i].Step = i + 1;
 
-                    // Serialize the RecordEvent object to JSON
-                    var eventEntry = zip.CreateEntry(eventEntryName);
-                    using (var entryStream = eventEntry.Open())
-                    using (var writer = new StreamWriter(entryStream))
-                    {
-                        string json = JsonSerializer.Serialize(snapshot[i]);
-                        writer.Write(json);
-                    }
+                        var eventEntryName = $"events/event_{snapshot[i].ID}.json";
 
-                    // Add the new entry to the set of valid entries
-                    validEntries.Add(eventEntryName);
+                        // If the screenshot is spooled on disk, load it into Screenshotb64
+                        // temporarily for serialisation, one at a time, then release it immediately.
+                        bool borrowedBase64 = false;
+                        if (string.IsNullOrEmpty(snapshot[i].Screenshotb64) &&
+                            !string.IsNullOrEmpty(snapshot[i].ScreenshotSpoolPath) &&
+                            File.Exists(snapshot[i].ScreenshotSpoolPath))
+                        {
+                            try
+                            {
+                                snapshot[i].Screenshotb64 = Convert.ToBase64String(
+                                    File.ReadAllBytes(snapshot[i].ScreenshotSpoolPath));
+                                borrowedBase64 = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"SaveToZip: could not read spool file: {ex.Message}");
+                            }
+                        }
+
+                        var eventEntry = zip.CreateEntry(eventEntryName, CompressionLevel.Fastest);
+                        using (var entryStream = eventEntry.Open())
+                        using (var writer = new StreamWriter(entryStream))
+                        {
+                            writer.Write(JsonSerializer.Serialize(snapshot[i]));
+                        }
+
+                        // Release borrowed base64 immediately — don't hold it for the next iteration
+                        if (borrowedBase64)
+                        {
+                            snapshot[i].Screenshotb64 = null;
+                            // Nudge GC: the large base64 string just became unreachable
+                            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+                        }
+                    }
                 }
 
-                // Remove entries from the zip archive that are not in validEntries
-                foreach (var entryName in existingEntries)
-                {
-                    if (!validEntries.Contains(entryName))
-                    {
-                        var entryToDelete = zip.GetEntry(entryName);
-                        entryToDelete?.Delete();
-                    }
-                }
+                // Atomically replace the real file
+                if (File.Exists(ZipFilePath))
+                    File.Delete(ZipFilePath);
+                File.Move(tempPath, ZipFilePath);
+            }
+            catch
+            {
+                // Clean up the temp file on failure so we don't leave orphans
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                throw;
             }
         }
     }
