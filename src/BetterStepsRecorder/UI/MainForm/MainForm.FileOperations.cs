@@ -111,7 +111,37 @@ namespace BetterStepsRecorder
                 dlg.Color = Program.ArrowColor;
                 dlg.FullOpen = true;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
                     Program.ArrowColor = dlg.Color;
+                    RecordingSettings.SaveCurrent();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens the click indicator style picker
+        /// </summary>
+        private void clickIndicatorStyleToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new UI.Dialogs.ClickIndicatorStyleDialog(Program.IndicatorStyle))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    Program.IndicatorStyle = dlg.SelectedStyle;
+                    RecordingSettings.SaveCurrent();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens the HTML export options dialog
+        /// </summary>
+        private void htmlExportOptionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var settings = HtmlExportSettings.Load();
+            using (var dlg = new UI.Dialogs.HtmlExportSettingsDialog(settings))
+            {
+                dlg.ShowDialog(this);
             }
         }
 

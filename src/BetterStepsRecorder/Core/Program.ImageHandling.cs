@@ -62,32 +62,33 @@ namespace BetterStepsRecorder
         /// <param name="offsetX">X offset of the bitmap</param>
         /// <param name="offsetY">Y offset of the bitmap</param>
         public static Color ArrowColor { get; set; } = Color.Magenta;
+        public static ClickIndicatorStyle IndicatorStyle { get; set; } = ClickIndicatorStyle.Arrow;
 
         private static void DrawArrowAtCursor(Graphics gfx, int width, int height, int offsetX, int offsetY, POINT cursorPos)
         {
-            // Define the length of the arrow
-            int arrowLength = 200;
-
-            // Convert the screen coordinates to bitmap coordinates
             int cursorX = cursorPos.X - offsetX;
             int cursorY = cursorPos.Y - offsetY;
 
-            // Determine arrow direction: down if in top half, up if in bottom half
-            int endX, endY;
-            if (cursorY < height / 2)
+            switch (IndicatorStyle)
             {
-                // Cursor is in the top half, arrow points down
-                endX = cursorX;
-                endY = cursorY + arrowLength;
+                case ClickIndicatorStyle.Circle:
+                    DrawCircleIndicator(gfx, cursorX, cursorY);
+                    break;
+                case ClickIndicatorStyle.Cursor:
+                    DrawCursorIndicator(gfx, cursorX, cursorY);
+                    break;
+                default:
+                    DrawArrowIndicator(gfx, width, height, cursorX, cursorY);
+                    break;
             }
-            else
-            {
-                // Cursor is in the bottom half, arrow points up
-                endX = cursorX;
-                endY = cursorY - arrowLength;
-            }
+        }
 
-            // Draw the arrow — both Pen and AdjustableArrowCap are IDisposable GDI objects
+        private static void DrawArrowIndicator(Graphics gfx, int width, int height, int cursorX, int cursorY)
+        {
+            int arrowLength = 200;
+            int endX = cursorX;
+            int endY = cursorY < height / 2 ? cursorY + arrowLength : cursorY - arrowLength;
+
             using (var arrowCap = new System.Drawing.Drawing2D.AdjustableArrowCap(5, 5))
             using (var arrowPen = new Pen(ArrowColor, 5))
             {
@@ -95,6 +96,54 @@ namespace BetterStepsRecorder
                 arrowPen.CustomEndCap = arrowCap;
                 gfx.DrawLine(arrowPen, endX, endY, cursorX, cursorY);
             }
+        }
+
+        private static void DrawCircleIndicator(Graphics gfx, int cursorX, int cursorY)
+        {
+            int radius = 28;
+            gfx.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            // Semi-transparent filled inner circle
+            using (var fill = new SolidBrush(Color.FromArgb(60, ArrowColor)))
+                gfx.FillEllipse(fill, cursorX - radius, cursorY - radius, radius * 2, radius * 2);
+
+            // Solid border ring
+            using (var border = new Pen(ArrowColor, 3.5f))
+                gfx.DrawEllipse(border, cursorX - radius, cursorY - radius, radius * 2, radius * 2);
+
+            // Small solid centre dot
+            int dot = 5;
+            using (var dotBrush = new SolidBrush(ArrowColor))
+                gfx.FillEllipse(dotBrush, cursorX - dot, cursorY - dot, dot * 2, dot * 2);
+        }
+
+        private static void DrawCursorIndicator(Graphics gfx, int cursorX, int cursorY)
+        {
+            // Classic arrow cursor polygon (pointing up-left)
+            int s = 28; // scale
+            PointF[] cursorPoly = new PointF[]
+            {
+                new PointF(cursorX,          cursorY),
+                new PointF(cursorX,          cursorY + s * 0.85f),
+                new PointF(cursorX + s * 0.25f, cursorY + s * 0.62f),
+                new PointF(cursorX + s * 0.42f, cursorY + s * 0.98f),
+                new PointF(cursorX + s * 0.54f, cursorY + s * 0.93f),
+                new PointF(cursorX + s * 0.37f, cursorY + s * 0.57f),
+                new PointF(cursorX + s * 0.65f, cursorY + s * 0.57f),
+            };
+
+            gfx.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            // White outline for contrast
+            using (var outline = new Pen(Color.White, 3f))
+            {
+                outline.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
+                gfx.DrawPolygon(outline, cursorPoly);
+            }
+
+            // Filled with indicator colour
+            using (var fill = new SolidBrush(ArrowColor))
+                gfx.FillPolygon(fill, cursorPoly);
         }
 
         /// <summary>

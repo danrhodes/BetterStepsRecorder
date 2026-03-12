@@ -60,6 +60,10 @@ namespace BetterStepsRecorder
 
                 // Set the step text
                 richTextBox_stepText.Text = selectedEvent._StepText;
+
+                // Re-enable undo if this step has history
+                if (_undoStacks.TryGetValue(selectedEvent.ID, out var existingStack) && existingStack.Count > 0)
+                    undoToolStripButton.Enabled = true;
             }
             else
             {

@@ -28,6 +28,15 @@ namespace BetterStepsRecorder.Exporters
         /// <returns>True if export was successful, false otherwise</returns>
         public override bool Export(string filePath)
         {
+            var cfg = HtmlExportSettings.Load();
+            return Export(filePath, cfg);
+        }
+
+        /// <summary>
+        /// Exports the current steps recording to HTML format using the supplied settings
+        /// </summary>
+        public bool Export(string filePath, HtmlExportSettings cfg)
+        {
             try
             {
                 EnsureDirectoryExists(filePath);
@@ -106,14 +115,21 @@ namespace BetterStepsRecorder.Exporters
                 // Page header
                 html.AppendLine("    <div class=\"page-header\">");
                 html.AppendLine($"        <h1>{HtmlEncode(title)}</h1>");
-                html.AppendLine($"        <div class=\"meta\">Generated {generated}</div>");
-                html.AppendLine("        <div class=\"summary-grid\">");
-                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Steps</div><div class=\"value\">{totalSteps}</div></div>");
-                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Started</div><div class=\"value\">{startStr}</div></div>");
-                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Finished</div><div class=\"value\">{endStr}</div></div>");
-                html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Total Duration</div><div class=\"value\">{durationStr}</div></div>");
-                html.AppendLine("        </div>");
-                html.AppendLine("        <div class=\"progress-bar-wrap\"><div class=\"progress-bar-fill\"></div></div>");
+
+                if (cfg.ShowGeneratedDate)
+                    html.AppendLine($"        <div class=\"meta\">Generated {generated}</div>");
+
+                if (cfg.ShowSummary)
+                {
+                    html.AppendLine("        <div class=\"summary-grid\">");
+                    html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Steps</div><div class=\"value\">{totalSteps}</div></div>");
+                    html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Started</div><div class=\"value\">{startStr}</div></div>");
+                    html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Finished</div><div class=\"value\">{endStr}</div></div>");
+                    html.AppendLine($"            <div class=\"summary-item\"><div class=\"label\">Total Duration</div><div class=\"value\">{durationStr}</div></div>");
+                    html.AppendLine("        </div>");
+                    html.AppendLine("        <div class=\"progress-bar-wrap\"><div class=\"progress-bar-fill\"></div></div>");
+                }
+
                 html.AppendLine("    </div>");
 
                 html.AppendLine("    <div class=\"container\">");
@@ -122,38 +138,47 @@ namespace BetterStepsRecorder.Exporters
                 DateTime? prevTime = null;
                 foreach (var recordEvent in Program._recordEvents)
                 {
-                    string stepText  = HtmlEncode(recordEvent._StepText ?? string.Empty);
-                    string timeStr;
-                    if (prevTime.HasValue)
-                    {
-                        TimeSpan delta = recordEvent.CreationTime - prevTime.Value;
-                        timeStr = $"{prevTime.Value:HH:mm:ss} → {recordEvent.CreationTime:HH:mm:ss} <span class=\"step-delta\">({FormatDuration(delta)})</span>";
-                    }
-                    else
-                    {
-                        timeStr = recordEvent.CreationTime.ToString("HH:mm:ss");
-                    }
-                    prevTime = recordEvent.CreationTime;
+                    string stepText = HtmlEncode(recordEvent._StepText ?? string.Empty);
 
                     html.AppendLine("        <div class=\"step-card\">");
                     html.AppendLine("            <div class=\"step-header\">");
                     html.AppendLine($"                <span class=\"step-badge\">Step {recordEvent.Step}</span>");
                     html.AppendLine("                <div class=\"step-header-text\">");
                     html.AppendLine($"                    <div class=\"step-title\">{stepText}</div>");
-                    html.AppendLine($"                    <div class=\"step-time\">{timeStr}</div>");
+
+                    if (cfg.ShowStepTimestamps)
+                    {
+                        string timeStr;
+                        if (prevTime.HasValue)
+                        {
+                            TimeSpan delta = recordEvent.CreationTime - prevTime.Value;
+                            timeStr = $"{prevTime.Value:HH:mm:ss} → {recordEvent.CreationTime:HH:mm:ss} <span class=\"step-delta\">({FormatDuration(delta)})</span>";
+                        }
+                        else
+                        {
+                            timeStr = recordEvent.CreationTime.ToString("HH:mm:ss");
+                        }
+                        html.AppendLine($"                    <div class=\"step-time\">{timeStr}</div>");
+                    }
+
+                    prevTime = recordEvent.CreationTime;
+
                     html.AppendLine("                </div>");
                     html.AppendLine("            </div>");
 
-                    // Detail strip
-                    html.AppendLine("            <div class=\"step-details\">");
-                    AppendDetail(html, "Action", recordEvent.EventType);
-                    AppendDetail(html, "Application", recordEvent.ApplicationName);
-                    AppendDetail(html, "Window", recordEvent.WindowTitle);
-                    AppendDetail(html, "Element", recordEvent.ElementName);
-                    AppendDetail(html, "Element Type", recordEvent.ElementType);
-                    if (recordEvent.MouseCoordinates.X != 0 || recordEvent.MouseCoordinates.Y != 0)
-                        AppendDetail(html, "Mouse Position", $"{recordEvent.MouseCoordinates.X}, {recordEvent.MouseCoordinates.Y}");
-                    html.AppendLine("            </div>");
+                    // Detail strip — only rendered when at least one detail option is on
+                    if (!cfg.IsDetailStripEmpty)
+                    {
+                        html.AppendLine("            <div class=\"step-details\">");
+                        if (cfg.ShowAction)      AppendDetail(html, "Action",        recordEvent.EventType);
+                        if (cfg.ShowApplication) AppendDetail(html, "Application",   recordEvent.ApplicationName);
+                        if (cfg.ShowWindow)      AppendDetail(html, "Window",         recordEvent.WindowTitle);
+                        if (cfg.ShowElement)     AppendDetail(html, "Element",        recordEvent.ElementName);
+                        if (cfg.ShowElementType) AppendDetail(html, "Element Type",   recordEvent.ElementType);
+                        if (cfg.ShowMousePosition && (recordEvent.MouseCoordinates.X != 0 || recordEvent.MouseCoordinates.Y != 0))
+                            AppendDetail(html, "Mouse Position", $"{recordEvent.MouseCoordinates.X}, {recordEvent.MouseCoordinates.Y}");
+                        html.AppendLine("            </div>");
+                    }
 
                     html.AppendLine("            <div class=\"step-body\">");
 
@@ -181,7 +206,6 @@ namespace BetterStepsRecorder.Exporters
                 // Lightbox markup
                 html.AppendLine("    <div id=\"lb-overlay\" onclick=\"closeLb()\"><img id=\"lb-img\" src=\"\" alt=\"\"></div>");
 
-                // Footer
                 html.AppendLine("    <div class=\"footer\">");
                 html.AppendLine("        Generated with <a href=\"https://github.com/Mentaleak/BetterStepsRecorder\" target=\"_blank\">Better Steps Recorder</a>");
                 html.AppendLine("    </div>");

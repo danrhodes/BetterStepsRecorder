@@ -64,6 +64,8 @@
             ToolStripMenuItem_Recording = new ToolStripMenuItem();
             settingsToolStripMenuItem = new ToolStripMenuItem();
             arrowColourToolStripMenuItem = new ToolStripMenuItem();
+            clickIndicatorStyleToolStripMenuItem = new ToolStripMenuItem();
+            htmlExportOptionsToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             contextMenu_ListBox_Events.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
@@ -401,7 +403,7 @@
             //
             // settingsToolStripMenuItem
             //
-            settingsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { arrowColourToolStripMenuItem });
+            settingsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { arrowColourToolStripMenuItem, clickIndicatorStyleToolStripMenuItem, htmlExportOptionsToolStripMenuItem });
             settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
             settingsToolStripMenuItem.Size = new Size(61, 20);
             settingsToolStripMenuItem.Text = "Settings";
@@ -409,9 +411,23 @@
             // arrowColourToolStripMenuItem
             //
             arrowColourToolStripMenuItem.Name = "arrowColourToolStripMenuItem";
-            arrowColourToolStripMenuItem.Size = new Size(160, 22);
+            arrowColourToolStripMenuItem.Size = new Size(200, 22);
             arrowColourToolStripMenuItem.Text = "Arrow Colour...";
             arrowColourToolStripMenuItem.Click += arrowColourToolStripMenuItem_Click;
+            //
+            // clickIndicatorStyleToolStripMenuItem
+            //
+            clickIndicatorStyleToolStripMenuItem.Name = "clickIndicatorStyleToolStripMenuItem";
+            clickIndicatorStyleToolStripMenuItem.Size = new Size(200, 22);
+            clickIndicatorStyleToolStripMenuItem.Text = "Click Indicator Style...";
+            clickIndicatorStyleToolStripMenuItem.Click += clickIndicatorStyleToolStripMenuItem_Click;
+            //
+            // htmlExportOptionsToolStripMenuItem
+            //
+            htmlExportOptionsToolStripMenuItem.Name = "htmlExportOptionsToolStripMenuItem";
+            htmlExportOptionsToolStripMenuItem.Size = new Size(180, 22);
+            htmlExportOptionsToolStripMenuItem.Text = "HTML Export Options...";
+            htmlExportOptionsToolStripMenuItem.Click += htmlExportOptionsToolStripMenuItem_Click;
             //
             // helpToolStripMenuItem
             //
@@ -483,6 +499,8 @@
         private ToolStripMenuItem exportToObsidianVaultToolStripMenuItem;
         private ToolStripMenuItem settingsToolStripMenuItem;
         private ToolStripMenuItem arrowColourToolStripMenuItem;
+        private ToolStripMenuItem clickIndicatorStyleToolStripMenuItem;
+        private ToolStripMenuItem htmlExportOptionsToolStripMenuItem;
         private ToolStrip pictureBoxToolStrip;
         private ToolStripButton undoToolStripButton;
         private ToolStripButton blurRegionToolStripButton;
