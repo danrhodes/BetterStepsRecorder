@@ -24,47 +24,45 @@ namespace BetterStepsRecorder.Exporters
         public abstract bool Export(string filePath);
 
         /// <summary>
-        /// Saves an image from base64 string to a file
+        /// Saves an image from base64 string to a file (kept for backward compatibility).
         /// </summary>
-        /// <param name="base64Image">The base64 encoded image string</param>
-        /// <param name="filePath">The path where to save the image</param>
-        /// <param name="format">The image format to use</param>
-        /// <returns>True if successful, false otherwise</returns>
         protected bool SaveImageFromBase64(string base64Image, string filePath, ImageFormat format = null)
+        {
+            if (string.IsNullOrEmpty(base64Image)) return false;
+            try { return SaveImageBytes(Convert.FromBase64String(base64Image), filePath, format); }
+            catch (Exception ex) { ReportImageError(ex); return false; }
+        }
+
+        /// <summary>
+        /// Saves a screenshot from a RecordEvent to a file, reading from spool disk or RAM as needed.
+        /// </summary>
+        protected bool SaveImageFromEvent(RecordEvent recordEvent, string filePath, ImageFormat format = null)
+        {
+            byte[]? bytes = Program.GetScreenshotBytes(recordEvent);
+            if (bytes == null) return false;
+            return SaveImageBytes(bytes, filePath, format);
+        }
+
+        private bool SaveImageBytes(byte[] imageBytes, string filePath, ImageFormat format = null)
         {
             try
             {
-                if (string.IsNullOrEmpty(base64Image))
-                    return false;
-
-                byte[] imageBytes = Convert.FromBase64String(base64Image);
                 using (MemoryStream ms = new MemoryStream(imageBytes))
+                using (Image image = Image.FromStream(ms))
                 {
-                    using (Image image = Image.FromStream(ms))
-                    {
-                        if (format == null)
-                            format = ImageFormat.Png;
-                        
-                        image.Save(filePath, format);
-                    }
+                    image.Save(filePath, format ?? ImageFormat.Png);
                 }
                 return true;
             }
-            catch (Exception ex)
-            {
-                // Use static StatusManager if initialized, otherwise fall back to MessageBox
-                if (StatusManager.IsInitialized)
-                {
-                    StatusManager.ShowMessage($"Error saving image: {ex.Message}", true);
-                }
-                else
-                {
-                    // Fallback to MessageBox only if StatusManager is not initialized
-                    MessageBox.Show($"Error saving image: {ex.Message}", 
-                        "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                return false;
-            }
+            catch (Exception ex) { ReportImageError(ex); return false; }
+        }
+
+        private void ReportImageError(Exception ex)
+        {
+            if (StatusManager.IsInitialized)
+                StatusManager.ShowMessage($"Error saving image: {ex.Message}", true);
+            else
+                MessageBox.Show($"Error saving image: {ex.Message}", "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         /// <summary>

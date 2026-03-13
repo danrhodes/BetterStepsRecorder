@@ -26,22 +26,20 @@ namespace BetterStepsRecorder
         /// </summary>
         private void Listbox_Events_SelectedIndexChanged(object sender, EventArgs e)
         {
+            ResetImageTools();
+
             if (Listbox_Events.SelectedItem is RecordEvent selectedEvent)
             {
                 propertyGrid_RecordEvent.SelectedObject = selectedEvent;
 
-                // Check if Screenshotb64 is not null or empty
-                if (!string.IsNullOrEmpty(selectedEvent.Screenshotb64))
+                // Load screenshot from RAM (Screenshotb64) or spool file (ScreenshotSpoolPath)
+                byte[]? imgBytes = Program.GetScreenshotBytes(selectedEvent);
+                if (imgBytes != null)
                 {
                     try
                     {
-                        // Convert the Base64 string back to a byte array
-                        byte[] imageBytes = Convert.FromBase64String(selectedEvent.Screenshotb64);
-
-                        // Create a MemoryStream from the byte array
-                        using (MemoryStream ms = new MemoryStream(imageBytes))
+                        using (MemoryStream ms = new MemoryStream(imgBytes))
                         {
-                            // Dispose the previous image before replacing to avoid GDI handle leaks
                             var oldImage = pictureBox1.Image;
                             pictureBox1.Image = new Bitmap(ms);
                             oldImage?.Dispose();
@@ -49,7 +47,7 @@ namespace BetterStepsRecorder
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Failed to load image from Base64 string: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Failed to load screenshot: {ex.Message}");
                         pictureBox1.Image?.Dispose();
                         pictureBox1.Image = null;
                     }
@@ -62,6 +60,10 @@ namespace BetterStepsRecorder
 
                 // Set the step text
                 richTextBox_stepText.Text = selectedEvent._StepText;
+
+                // Re-enable undo if this step has history
+                if (_undoStacks.TryGetValue(selectedEvent.ID, out var existingStack) && existingStack.Count > 0)
+                    undoToolStripButton.Enabled = true;
             }
             else
             {

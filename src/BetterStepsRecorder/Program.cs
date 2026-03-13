@@ -15,7 +15,6 @@ using System.IO;
 using System.ComponentModel;
 using Debug = System.Diagnostics.Debug;
 using Application = System.Windows.Forms.Application;
-using System.Windows; // Add this for System.Windows.Point
 using BetterStepsRecorder.Exporters;
 using BetterStepsRecorder.UI;
 
@@ -30,16 +29,64 @@ namespace BetterStepsRecorder
         private static MainForm? _form1Instance;
         public static int EventCounter = 1;
 
+        /// <summary>
+        /// Per-session spool directory under %LOCALAPPDATA%\BetterStepsRecorder\spool\{guid}.
+        /// Screenshot PNG files are written here instead of held in RAM as Base64 strings.
+        /// </summary>
+        public static readonly string SessionSpoolDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BetterStepsRecorder", "spool", Guid.NewGuid().ToString("N"));
+
         [STAThread]
         static void Main()
         {
             ApplicationConfiguration.Initialize();
+
+            // Load persisted recording settings (arrow colour, indicator style)
+            RecordingSettings.Load().Apply();
+
+            // Create the spool directory for this session
+            Directory.CreateDirectory(SessionSpoolDir);
+
+            // Clean up spool folders from previous sessions (older than 7 days)
+            CleanOldSpoolSessions();
+
             _form1Instance = new MainForm();
 
             Application.Run(_form1Instance);
 
             // Ensure proper cleanup of FlaUI resources
             WindowHelper.Cleanup();
+
+            // Clean up this session's spool directory on clean exit
+            TryDeleteSpoolDir(SessionSpoolDir);
+        }
+
+        /// <summary>Deletes spool session folders older than 7 days.</summary>
+        private static void CleanOldSpoolSessions()
+        {
+            try
+            {
+                string spoolRoot = Path.GetDirectoryName(SessionSpoolDir)!;
+                if (!Directory.Exists(spoolRoot)) return;
+                foreach (string dir in Directory.GetDirectories(spoolRoot))
+                {
+                    try
+                    {
+                        if (Directory.GetCreationTime(dir) < DateTime.Now.AddDays(-7))
+                            Directory.Delete(dir, true);
+                    }
+                    catch { /* ignore individual failures */ }
+                }
+            }
+            catch { /* ignore */ }
+        }
+
+        /// <summary>Attempts to delete a spool directory, silently ignoring failures.</summary>
+        public static void TryDeleteSpoolDir(string path)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, true); }
+            catch { /* ignore */ }
         }
 
     }

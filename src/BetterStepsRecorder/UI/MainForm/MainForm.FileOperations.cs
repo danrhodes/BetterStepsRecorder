@@ -20,6 +20,10 @@ namespace BetterStepsRecorder
             {
                 EnableRecording();
                 Program.zip = new ZipFileHandler(zipFilePath);
+                // Clear spool files from the previous recording session
+                foreach (var ev in Program._recordEvents)
+                    if (!string.IsNullOrEmpty(ev.ScreenshotSpoolPath))
+                        try { File.Delete(ev.ScreenshotSpoolPath); } catch { }
                 Program._recordEvents = new List<RecordEvent>();
                 Listbox_Events.Items.Clear();
                 Program.EventCounter = 1;
@@ -95,6 +99,50 @@ namespace BetterStepsRecorder
         private void richTextBox_stepText_Leave(object sender, EventArgs e)
         {
             UpdateListItems();
+        }
+
+        /// <summary>
+        /// Opens a colour picker to change the annotation arrow colour
+        /// </summary>
+        private void arrowColourToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new ColorDialog())
+            {
+                dlg.Color = Program.ArrowColor;
+                dlg.FullOpen = true;
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    Program.ArrowColor = dlg.Color;
+                    RecordingSettings.SaveCurrent();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens the click indicator style picker
+        /// </summary>
+        private void clickIndicatorStyleToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new UI.Dialogs.ClickIndicatorStyleDialog(Program.IndicatorStyle))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    Program.IndicatorStyle = dlg.SelectedStyle;
+                    RecordingSettings.SaveCurrent();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens the HTML export options dialog
+        /// </summary>
+        private void htmlExportOptionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var settings = HtmlExportSettings.Load();
+            using (var dlg = new UI.Dialogs.HtmlExportSettingsDialog(settings))
+            {
+                dlg.ShowDialog(this);
+            }
         }
 
         /// <summary>

@@ -99,32 +99,30 @@ namespace BetterStepsRecorder
                         int  UIWidth     = UIrect.Right  - UIrect.Left;
                         int  UIHeight    = UIrect.Bottom - UIrect.Top;
 
-                        // For right-clicks, grab the raw pixels immediately in the hook before
-                        // CallNextHookEx delivers the event and the context menu disappears.
-                        // CopyFromScreen is pure GDI and fast enough to do synchronously here.
-                        Bitmap? rightClickBitmap = null;
-                        if (clickType == "Right Click")
+                        // Grab the raw pixels immediately in the hook before CallNextHookEx
+                        // delivers the event. For left-clicks this captures the dialog/button
+                        // before it dismisses; for right-clicks it captures before the context
+                        // menu disappears. CopyFromScreen is pure GDI and fast enough here.
+                        Bitmap? preClickBitmap = null;
+                        try
                         {
-                            try
-                            {
-                                rightClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                                using (Graphics gfx = Graphics.FromImage(rightClickBitmap))
-                                    gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
-                                        new System.Drawing.Size(windowWidth, windowHeight),
-                                        CopyPixelOperation.SourceCopy);
-                            }
-                            catch
-                            {
-                                rightClickBitmap?.Dispose();
-                                rightClickBitmap = null;
-                            }
+                            preClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                            using (Graphics gfx = Graphics.FromImage(preClickBitmap))
+                                gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
+                                    new System.Drawing.Size(windowWidth, windowHeight),
+                                    CopyPixelOperation.SourceCopy);
+                        }
+                        catch
+                        {
+                            preClickBitmap?.Dispose();
+                            preClickBitmap = null;
                         }
 
                         // Capture a snapshot of all values needed by the background thread
                         var snapshot = (
                             cursorPos, hwnd, windowTitle, applicationName, clickType,
                             UIrect, rect, windowWidth, windowHeight, UIWidth, UIHeight,
-                            rightClickBitmap
+                            preClickBitmap
                         );
 
                         // Offload the slow work (FlaUI UI Automation + PNG encode) to a
@@ -134,7 +132,7 @@ namespace BetterStepsRecorder
                         {
                             var (cp, _, wt, appName, ct,
                                  uiRect, winRect, winW, winH, uiW, uiH,
-                                 rcBitmap) = snapshot;
+                                 preBitmap) = snapshot;
 
                             // FlaUI call — can block for hundreds of ms on complex UIs
                             AutomationElement? element = GetElementFromPoint(
@@ -153,7 +151,7 @@ namespace BetterStepsRecorder
                             // Skip if this click is to our own app
                             if (appName == _ownProcessName)
                             {
-                                rcBitmap?.Dispose();
+                                preBitmap?.Dispose();
                                 return;
                             }
 
@@ -168,7 +166,7 @@ namespace BetterStepsRecorder
                                     WindowSize         = new Size { Width = winW, Height = winH },
                                     UICoordinates      = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
                                     UISize             = new Size { Width = uiW, Height = uiH },
-                                    UIElement          = element,
+                                    UIElement          = null, // not needed after name/type extracted; releasing COM object
                                     ElementName        = elementName,
                                     ElementType        = elementType,
                                     MouseCoordinates   = new POINT { X = cp.X, Y = cp.Y },
@@ -179,30 +177,50 @@ namespace BetterStepsRecorder
                                 _recordEvents.Add(recordEvent);
                             }
 
-                            // Screen capture: right-clicks use the pre-captured bitmap; left-clicks capture now
-                            string? screenshotb64;
-                            if (rcBitmap != null)
+                            // Screen capture: use the pre-captured bitmap (taken synchronously before
+                            // CallNextHookEx so dialogs/buttons are still visible), falling back to
+                            // a live capture if the pre-capture failed for any reason.
+                            // PNG bytes are spooled to disk immediately so they don't stay in RAM.
+                            byte[]? pngBytes = null;
+                            if (preBitmap != null)
                             {
-                                // Draw the arrow onto the already-captured bitmap, then encode
-                                using (rcBitmap)
+                                using (preBitmap)
                                 {
-                                    using (Graphics gfx = Graphics.FromImage(rcBitmap))
+                                    using (Graphics gfx = Graphics.FromImage(preBitmap))
                                         DrawArrowAtCursor(gfx, winW, winH, winRect.Left, winRect.Top, cp);
                                     using (var ms = new System.IO.MemoryStream())
                                     {
-                                        rcBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                                        screenshotb64 = Convert.ToBase64String(ms.ToArray());
+                                        preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                        pngBytes = ms.ToArray();
                                     }
                                 }
                             }
                             else
                             {
-                                screenshotb64 = SaveScreenRegionScreenshot(
+                                // Fall back to live capture — returns base64; convert to bytes
+                                string? b64 = SaveScreenRegionScreenshot(
                                     winRect.Left, winRect.Top, winW, winH, recordEvent.ID, cp);
+                                if (b64 != null)
+                                    pngBytes = Convert.FromBase64String(b64);
                             }
 
-                            if (screenshotb64 != null)
-                                recordEvent.Screenshotb64 = screenshotb64;
+                            if (pngBytes != null)
+                            {
+                                // Try to spool to disk; fall back to RAM if spool write fails
+                                string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                if (spoolPath != null)
+                                    recordEvent.ScreenshotSpoolPath = spoolPath;
+                                else
+                                    recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+
+                                // Release the large byte array immediately — it was either written to
+                                // disk or encoded into base64; either way we no longer need the raw bytes.
+                                pngBytes = null;
+                            }
+
+                            // The PNG byte array is large (LOH eligible at >85KB). Nudge the GC to
+                            // collect it promptly rather than waiting for the next scheduled Gen2.
+                            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
 
                             // Marshal UI update back to the UI thread (non-blocking — don't Invoke)
                             _form1Instance?.BeginInvoke((Action)(() =>

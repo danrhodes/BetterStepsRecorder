@@ -34,6 +34,24 @@ namespace BetterStepsRecorder
 
                                     if (recordEvent != null)
                                     {
+                                        // If the JSON contains an embedded Base64 screenshot, spool it to disk
+                                        // immediately and clear the in-RAM string to free memory.
+                                        if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                                        {
+                                            try
+                                            {
+                                                byte[] pngBytes = Convert.FromBase64String(recordEvent.Screenshotb64);
+                                                string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                                if (spoolPath != null)
+                                                {
+                                                    recordEvent.ScreenshotSpoolPath = spoolPath;
+                                                    recordEvent.Screenshotb64 = null;
+                                                }
+                                                // If spool fails, Screenshotb64 stays set as fallback
+                                            }
+                                            catch { /* leave Screenshotb64 as-is on decode error */ }
+                                        }
+
                                         loadedEvents.Add(recordEvent);
                                         EventCounter++;
                                     }
@@ -111,12 +129,9 @@ namespace BetterStepsRecorder
         {
             try
             {
-                // Check if we have a valid zip file handler
+                // Nothing to save if no file is open yet
                 if (zip == null)
-                {
-                    MessageBox.Show("No file is currently open for saving.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
-                }
                 
                 // Save all current record events to the zip file
                 zip.SaveToZip();

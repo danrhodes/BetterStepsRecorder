@@ -64,12 +64,11 @@ namespace BetterStepsRecorder.Exporters
                         */
 
                         // Add screenshot if available
-                        if (!string.IsNullOrEmpty(recordEvent.Screenshotb64))
+                        if (recordEvent.HasScreenshot)
                         {
                             rtfBox.AppendText("\n");
 
-                            // Convert base64 to image and insert into RTF
-                            using (Image img = GetRtfImage(recordEvent.Screenshotb64))
+                            using (Image img = GetRtfImage(recordEvent))
                             {
                                 if (img != null)
                                 {
@@ -116,22 +115,20 @@ namespace BetterStepsRecorder.Exporters
         }
         
         /// <summary>
-        /// Converts a base64 encoded image string to an Image object suitable for RTF
+        /// Loads and scales a screenshot from a RecordEvent for embedding in RTF.
         /// </summary>
-        private Image GetRtfImage(string base64Image)
+        private Image GetRtfImage(RecordEvent recordEvent)
         {
             try
             {
-                byte[] imageBytes = Convert.FromBase64String(base64Image);
-                // Use Bitmap constructor so the resulting image is stream-independent.
-                // This also means the using block can safely close the stream.
+                byte[]? imageBytes = Program.GetScreenshotBytes(recordEvent);
+                if (imageBytes == null) return null;
                 using (var ms = new MemoryStream(imageBytes))
                 using (var original = new Bitmap(ms))
                 {
                     const int maxWidth = 800;
                     int targetWidth = Math.Min(original.Width, maxWidth);
                     int targetHeight = (int)((double)original.Height / original.Width * targetWidth);
-                    // new Bitmap(image, size) always returns a stream-independent copy
                     return new Bitmap(original, targetWidth, targetHeight);
                 }
             }
