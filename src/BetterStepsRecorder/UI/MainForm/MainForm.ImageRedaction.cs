@@ -412,7 +412,10 @@ namespace BetterStepsRecorder
                 stack = new Stack<string>();
                 _undoStacks[evt.ID] = stack;
             }
-            stack.Push(evt.Screenshotb64 ?? string.Empty);
+            // Capture the current image bytes (RAM or spool) so undo can restore it correctly
+            byte[]? currentBytes = Program.GetScreenshotBytes(evt);
+            string previousState = currentBytes != null ? Convert.ToBase64String(currentBytes) : string.Empty;
+            stack.Push(previousState);
             undoToolStripButton.Enabled = true;
 
             var oldImage = pictureBox1.Image;
