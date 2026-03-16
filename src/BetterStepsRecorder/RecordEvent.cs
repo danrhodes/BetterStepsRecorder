@@ -34,6 +34,8 @@ namespace BetterStepsRecorder
         public AutomationElement? UIElement { get; set; }
         
         public WindowHelper.POINT MouseCoordinates { get; set; }
+        public WindowHelper.POINT? DragStartCoordinates { get; set; }
+        public WindowHelper.POINT? DragEndCoordinates { get; set; }
         public string? EventType { get; set; }
         public string? Screenshotb64 { get; set; }
 

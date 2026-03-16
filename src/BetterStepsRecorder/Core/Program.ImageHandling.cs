@@ -117,6 +117,62 @@ namespace BetterStepsRecorder
                 gfx.FillEllipse(dotBrush, cursorX - dot, cursorY - dot, dot * 2, dot * 2);
         }
 
+        /// <summary>
+        /// Draws a drag arrow from <paramref name="dragStart"/> to <paramref name="dragEnd"/>
+        /// on the screenshot, showing both the origin and destination of a drag action.
+        /// </summary>
+        internal static void DrawDragArrow(Graphics gfx, int width, int height, int offsetX, int offsetY, POINT dragStart, POINT dragEnd)
+        {
+            int sx = dragStart.X - offsetX;
+            int sy = dragStart.Y - offsetY;
+            int ex = dragEnd.X   - offsetX;
+            int ey = dragEnd.Y   - offsetY;
+
+            gfx.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            // Bezier control points: bow the curve out perpendicular to the drag direction
+            // so the arc clears the content it is drawn over.
+            float midX = (sx + ex) / 2f;
+            float midY = (sy + ey) / 2f;
+            float dx   = ex - sx;
+            float dy   = ey - sy;
+            float len  = (float)Math.Sqrt(dx * dx + dy * dy);
+            float bow  = Math.Min(Math.Max(len * 0.35f, 40f), 120f); // proportional but capped
+            // Perpendicular unit vector (rotated 90° clockwise)
+            float perpX = len > 0 ?  dy / len : 1f;
+            float perpY = len > 0 ? -dx / len : 0f;
+            float c1x = sx + dx * 0.25f + perpX * bow;
+            float c1y = sy + dy * 0.25f + perpY * bow;
+            float c2x = sx + dx * 0.75f + perpX * bow;
+            float c2y = sy + dy * 0.75f + perpY * bow;
+
+            // Draw the curved arrow using a GraphicsPath so we can attach the arrowhead cap
+            using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                path.AddBezier(sx, sy, c1x, c1y, c2x, c2y, ex, ey);
+                using (var arrowCap = new System.Drawing.Drawing2D.AdjustableArrowCap(6, 6))
+                using (var pen = new Pen(ArrowColor, 4))
+                {
+                    pen.EndCap = System.Drawing.Drawing2D.LineCap.Custom;
+                    pen.CustomEndCap = arrowCap;
+                    gfx.DrawPath(pen, path);
+                }
+            }
+
+            // Circle at the drag start
+            int r = 10;
+            using (var fill = new SolidBrush(Color.FromArgb(120, ArrowColor)))
+                gfx.FillEllipse(fill, sx - r, sy - r, r * 2, r * 2);
+            using (var border = new Pen(ArrowColor, 2.5f))
+                gfx.DrawEllipse(border, sx - r, sy - r, r * 2, r * 2);
+
+            // Circle at the drag end
+            using (var fill = new SolidBrush(Color.FromArgb(120, ArrowColor)))
+                gfx.FillEllipse(fill, ex - r, ey - r, r * 2, r * 2);
+            using (var border = new Pen(ArrowColor, 2.5f))
+                gfx.DrawEllipse(border, ex - r, ey - r, r * 2, r * 2);
+        }
+
         private static void DrawCursorIndicator(Graphics gfx, int cursorX, int cursorY)
         {
             // Classic arrow cursor polygon (pointing up-left)
