@@ -63,6 +63,7 @@ namespace BetterStepsRecorder
         /// <param name="offsetY">Y offset of the bitmap</param>
         public static Color ArrowColor { get; set; } = Color.Magenta;
         public static ClickIndicatorStyle IndicatorStyle { get; set; } = ClickIndicatorStyle.Arrow;
+        public static DragScreenshotMode DragScreenshotMode { get; set; } = DragScreenshotMode.Cropped;
 
         private static void DrawArrowAtCursor(Graphics gfx, int width, int height, int offsetX, int offsetY, POINT cursorPos)
         {
@@ -145,6 +146,17 @@ namespace BetterStepsRecorder
             float c1y = sy + dy * 0.25f + perpY * bow;
             float c2x = sx + dx * 0.75f + perpX * bow;
             float c2y = sy + dy * 0.75f + perpY * bow;
+            // If the control points bow outside the image, flip the curve to bow inward instead
+            if (c1x < 0 || c1x > width || c1y < 0 || c1y > height ||
+                c2x < 0 || c2x > width || c2y < 0 || c2y > height)
+            {
+                perpX = -perpX;
+                perpY = -perpY;
+                c1x = sx + dx * 0.25f + perpX * bow;
+                c1y = sy + dy * 0.25f + perpY * bow;
+                c2x = sx + dx * 0.75f + perpX * bow;
+                c2y = sy + dy * 0.75f + perpY * bow;
+            }
 
             // Draw the curved arrow using a GraphicsPath so we can attach the arrowhead cap
             using (var path = new System.Drawing.Drawing2D.GraphicsPath())

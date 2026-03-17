@@ -22,6 +22,8 @@ namespace BetterStepsRecorder
 
         public ClickIndicatorStyle IndicatorStyle { get; set; } = ClickIndicatorStyle.Arrow;
 
+        public DragScreenshotMode DragScreenshotMode { get; set; } = DragScreenshotMode.Cropped;
+
         // ── Helpers ────────────────────────────────────────────────────────────
 
         [JsonIgnore]
@@ -63,6 +65,7 @@ namespace BetterStepsRecorder
         {
             Program.ArrowColor = ArrowColor;
             Program.IndicatorStyle = IndicatorStyle;
+            Program.DragScreenshotMode = DragScreenshotMode;
         }
 
         /// <summary>Snapshots the current live Program static properties and saves to disk.</summary>
@@ -71,7 +74,8 @@ namespace BetterStepsRecorder
             var s = new RecordingSettings
             {
                 ArrowColor = Program.ArrowColor,
-                IndicatorStyle = Program.IndicatorStyle
+                IndicatorStyle = Program.IndicatorStyle,
+                DragScreenshotMode = Program.DragScreenshotMode
             };
             s.Save();
         }

@@ -157,15 +157,25 @@ namespace BetterStepsRecorder
                                 int uiW = endUIrect.Right  - endUIrect.Left;
                                 int uiH = endUIrect.Bottom - endUIrect.Top;
 
-                                // Capture a padded bounding box around the drag path so the
-                                // screenshot is tight to the action rather than the full window.
-                                const int DragPad = 120;
-                                int cropLeft   = Math.Max(0, Math.Min(dragStart.X, dragEnd.X) - DragPad);
-                                int cropTop    = Math.Max(0, Math.Min(dragStart.Y, dragEnd.Y) - DragPad);
-                                int cropRight  = Math.Min(SystemInformation.VirtualScreen.Right,  Math.Max(dragStart.X, dragEnd.X) + DragPad);
-                                int cropBottom = Math.Min(SystemInformation.VirtualScreen.Bottom, Math.Max(dragStart.Y, dragEnd.Y) + DragPad);
-                                int cropW = cropRight  - cropLeft;
-                                int cropH = cropBottom - cropTop;
+                                // Capture region: padded crop around the drag path, or full virtual screen
+                                int cropLeft, cropTop, cropW, cropH;
+                                if (DragScreenshotMode == DragScreenshotMode.FullScreen)
+                                {
+                                    cropLeft = SystemInformation.VirtualScreen.Left;
+                                    cropTop  = SystemInformation.VirtualScreen.Top;
+                                    cropW    = SystemInformation.VirtualScreen.Width;
+                                    cropH    = SystemInformation.VirtualScreen.Height;
+                                }
+                                else
+                                {
+                                    const int DragPad = 120;
+                                    int cropRight  = Math.Min(SystemInformation.VirtualScreen.Right,  Math.Max(dragStart.X, dragEnd.X) + DragPad);
+                                    int cropBottom = Math.Min(SystemInformation.VirtualScreen.Bottom, Math.Max(dragStart.Y, dragEnd.Y) + DragPad);
+                                    cropLeft = Math.Max(0, Math.Min(dragStart.X, dragEnd.X) - DragPad);
+                                    cropTop  = Math.Max(0, Math.Min(dragStart.Y, dragEnd.Y) - DragPad);
+                                    cropW = cropRight  - cropLeft;
+                                    cropH = cropBottom - cropTop;
+                                }
 
                                 Bitmap? dragBitmap = null;
                                 try

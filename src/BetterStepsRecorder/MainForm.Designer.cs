@@ -65,6 +65,7 @@
             settingsToolStripMenuItem = new ToolStripMenuItem();
             arrowColourToolStripMenuItem = new ToolStripMenuItem();
             clickIndicatorStyleToolStripMenuItem = new ToolStripMenuItem();
+            dragScreenshotModeToolStripMenuItem = new ToolStripMenuItem();
             htmlExportOptionsToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             contextMenu_ListBox_Events.SuspendLayout();
@@ -403,7 +404,7 @@
             //
             // settingsToolStripMenuItem
             //
-            settingsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { arrowColourToolStripMenuItem, clickIndicatorStyleToolStripMenuItem, htmlExportOptionsToolStripMenuItem });
+            settingsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { arrowColourToolStripMenuItem, clickIndicatorStyleToolStripMenuItem, dragScreenshotModeToolStripMenuItem, htmlExportOptionsToolStripMenuItem });
             settingsToolStripMenuItem.Name = "settingsToolStripMenuItem";
             settingsToolStripMenuItem.Size = new Size(61, 20);
             settingsToolStripMenuItem.Text = "Settings";
@@ -421,6 +422,13 @@
             clickIndicatorStyleToolStripMenuItem.Size = new Size(200, 22);
             clickIndicatorStyleToolStripMenuItem.Text = "Click Indicator Style...";
             clickIndicatorStyleToolStripMenuItem.Click += clickIndicatorStyleToolStripMenuItem_Click;
+            //
+            // dragScreenshotModeToolStripMenuItem
+            //
+            dragScreenshotModeToolStripMenuItem.Name = "dragScreenshotModeToolStripMenuItem";
+            dragScreenshotModeToolStripMenuItem.Size = new Size(200, 22);
+            dragScreenshotModeToolStripMenuItem.Text = "Drag Screenshot Mode...";
+            dragScreenshotModeToolStripMenuItem.Click += dragScreenshotModeToolStripMenuItem_Click;
             //
             // htmlExportOptionsToolStripMenuItem
             //
@@ -500,6 +508,7 @@
         private ToolStripMenuItem settingsToolStripMenuItem;
         private ToolStripMenuItem arrowColourToolStripMenuItem;
         private ToolStripMenuItem clickIndicatorStyleToolStripMenuItem;
+        private ToolStripMenuItem dragScreenshotModeToolStripMenuItem;
         private ToolStripMenuItem htmlExportOptionsToolStripMenuItem;
         private ToolStrip pictureBoxToolStrip;
         private ToolStripButton undoToolStripButton;
