@@ -158,31 +158,70 @@ namespace BetterStepsRecorder
                 c2y = sy + dy * 0.75f + perpY * bow;
             }
 
-            // Draw the curved arrow using a GraphicsPath so we can attach the arrowhead cap
+            // Compute the blended arrowhead direction first so we can shorten the line to match
+            float _ltx = ex - c2x, _lty = ey - c2y;
+            float _ltLen = (float)Math.Sqrt(_ltx * _ltx + _lty * _lty);
+            if (_ltLen > 0) { _ltx /= _ltLen; _lty /= _ltLen; }
+            float _gtx = len > 0 ? dx / len : 1f, _gty = len > 0 ? dy / len : 0f;
+            if (_ltx * _gtx + _lty * _gty < 0) { _ltx = -_ltx; _lty = -_lty; }
+            float tx = _ltx * 0.5f + _gtx * 0.5f, ty = _lty * 0.5f + _gty * 0.5f;
+            float tLen2 = (float)Math.Sqrt(tx * tx + ty * ty);
+            if (tLen2 > 0) { tx /= tLen2; ty /= tLen2; }
+
+            const float cr = 10f; // circle radius — must match below
+            const float ah = 16f; // arrowhead height
+            const float aw =  9f; // arrowhead half-width
+
+            // Tip sits exactly on the circle edge; base is ah pixels back along the tangent
+            float tipX  = ex - tx * cr;
+            float tipY  = ey - ty * cr;
+            float baseX = tipX - tx * ah;
+            float baseY = tipY - ty * ah;
+
+            // Draw the Bezier line shortened to the arrowhead base so nothing pokes through
             using (var path = new System.Drawing.Drawing2D.GraphicsPath())
             {
-                path.AddBezier(sx, sy, c1x, c1y, c2x, c2y, ex, ey);
-                using (var arrowCap = new System.Drawing.Drawing2D.AdjustableArrowCap(6, 6))
+                path.AddBezier(sx, sy, c1x, c1y, c2x, c2y, baseX, baseY);
                 using (var pen = new Pen(ArrowColor, 4))
-                {
-                    pen.EndCap = System.Drawing.Drawing2D.LineCap.Custom;
-                    pen.CustomEndCap = arrowCap;
                     gfx.DrawPath(pen, path);
-                }
             }
 
-            // Circle at the drag start
-            int r = 10;
-            using (var fill = new SolidBrush(Color.FromArgb(120, ArrowColor)))
-                gfx.FillEllipse(fill, sx - r, sy - r, r * 2, r * 2);
-            using (var border = new Pen(ArrowColor, 2.5f))
-                gfx.DrawEllipse(border, sx - r, sy - r, r * 2, r * 2);
+            // Draw arrowhead triangle: tip on circle edge, base back along tangent
+            {
+                float px = -ty, py = tx;
+                PointF tip   = new PointF(tipX, tipY);
+                PointF base1 = new PointF(baseX + px * aw, baseY + py * aw);
+                PointF base2 = new PointF(baseX - px * aw, baseY - py * aw);
+                using (var brush = new SolidBrush(ArrowColor))
+                    gfx.FillPolygon(brush, new[] { tip, base1, base2 });
+            }
 
-            // Circle at the drag end
-            using (var fill = new SolidBrush(Color.FromArgb(120, ArrowColor)))
-                gfx.FillEllipse(fill, ex - r, ey - r, r * 2, r * 2);
-            using (var border = new Pen(ArrowColor, 2.5f))
-                gfx.DrawEllipse(border, ex - r, ey - r, r * 2, r * 2);
+            // Clamp a circle center so it stays fully inside the bitmap
+            int r = 10;
+            int ClampX(int x) => Math.Max(r, Math.Min(width  - r, x));
+            int ClampY(int y) => Math.Max(r, Math.Min(height - r, y));
+
+            // START: semi-transparent circle with a white "1" label
+            int scx = ClampX(sx), scy = ClampY(sy);
+            using (var fill = new SolidBrush(Color.FromArgb(160, ArrowColor)))
+                gfx.FillEllipse(fill, scx - r, scy - r, r * 2, r * 2);
+            using (var border = new Pen(Color.White, 2f))
+                gfx.DrawEllipse(border, scx - r, scy - r, r * 2, r * 2);
+            using (var font = new Font("Arial", 8f, FontStyle.Bold))
+            using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            using (var textBrush = new SolidBrush(Color.White))
+                gfx.DrawString("1", font, textBrush, new RectangleF(scx - r, scy - r, r * 2, r * 2), sf);
+
+            // END: filled circle with a white "2" label
+            int ecx = ClampX(ex), ecy = ClampY(ey);
+            using (var fill = new SolidBrush(Color.FromArgb(220, ArrowColor)))
+                gfx.FillEllipse(fill, ecx - r, ecy - r, r * 2, r * 2);
+            using (var border = new Pen(Color.White, 2f))
+                gfx.DrawEllipse(border, ecx - r, ecy - r, r * 2, r * 2);
+            using (var font = new Font("Arial", 8f, FontStyle.Bold))
+            using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            using (var textBrush = new SolidBrush(Color.White))
+                gfx.DrawString("2", font, textBrush, new RectangleF(ecx - r, ecy - r, r * 2, r * 2), sf);
         }
 
         private static void DrawCursorIndicator(Graphics gfx, int cursorX, int cursorY)

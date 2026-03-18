@@ -92,7 +92,7 @@ namespace BetterStepsRecorder
             {
                 var msg = (MouseMessages)wParam;
 
-                // ── Left button DOWN: remember start position & capture pre-drag screenshot ──
+                // ── Left button DOWN: remember start position, no I/O on the hook thread ──
                 if (msg == MouseMessages.WM_LBUTTONDOWN)
                 {
                     POINT cursorPos;
@@ -157,54 +157,69 @@ namespace BetterStepsRecorder
                                 int uiW = endUIrect.Right  - endUIrect.Left;
                                 int uiH = endUIrect.Bottom - endUIrect.Top;
 
-                                // Capture region: padded crop around the drag path, or full virtual screen
+                                // Capture region: padded crop, the screen containing the drag end, or all screens
                                 int cropLeft, cropTop, cropW, cropH;
-                                if (DragScreenshotMode == DragScreenshotMode.FullScreen)
+                                if (DragScreenshotMode == DragScreenshotMode.AllScreens)
                                 {
                                     cropLeft = SystemInformation.VirtualScreen.Left;
                                     cropTop  = SystemInformation.VirtualScreen.Top;
                                     cropW    = SystemInformation.VirtualScreen.Width;
                                     cropH    = SystemInformation.VirtualScreen.Height;
                                 }
+                                else if (DragScreenshotMode == DragScreenshotMode.ActiveScreen)
+                                {
+                                    // Use the screen that contains the drag end point
+                                    var screen = Screen.FromPoint(new System.Drawing.Point(dragEnd.X, dragEnd.Y));
+                                    cropLeft = screen.Bounds.Left;
+                                    cropTop  = screen.Bounds.Top;
+                                    cropW    = screen.Bounds.Width;
+                                    cropH    = screen.Bounds.Height;
+                                }
                                 else
                                 {
                                     const int DragPad = 120;
                                     int cropRight  = Math.Min(SystemInformation.VirtualScreen.Right,  Math.Max(dragStart.X, dragEnd.X) + DragPad);
                                     int cropBottom = Math.Min(SystemInformation.VirtualScreen.Bottom, Math.Max(dragStart.Y, dragEnd.Y) + DragPad);
-                                    cropLeft = Math.Max(0, Math.Min(dragStart.X, dragEnd.X) - DragPad);
-                                    cropTop  = Math.Max(0, Math.Min(dragStart.Y, dragEnd.Y) - DragPad);
+                                    cropLeft = Math.Max(SystemInformation.VirtualScreen.Left, Math.Min(dragStart.X, dragEnd.X) - DragPad);
+                                    cropTop  = Math.Max(SystemInformation.VirtualScreen.Top,  Math.Min(dragStart.Y, dragEnd.Y) - DragPad);
                                     cropW = cropRight  - cropLeft;
                                     cropH = cropBottom - cropTop;
                                 }
 
-                                Bitmap? dragBitmap = null;
-                                try
-                                {
-                                    dragBitmap = new Bitmap(cropW, cropH, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                                    using (Graphics gfx = Graphics.FromImage(dragBitmap))
-                                        gfx.CopyFromScreen(cropLeft, cropTop, 0, 0,
-                                            new System.Drawing.Size(cropW, cropH), CopyPixelOperation.SourceCopy);
-                                }
-                                catch
-                                {
-                                    dragBitmap?.Dispose();
-                                    dragBitmap = null;
-                                }
-
                                 var snapshot = (dragStart, dragEnd, hwnd, windowTitle, appName,
                                                 endUIrect, winRect, winW, winH, uiW, uiH,
-                                                cropLeft, cropTop, cropW, cropH, dragBitmap);
+                                                cropLeft, cropTop, cropW, cropH);
 
                                 ThreadPool.QueueUserWorkItem(_ =>
                                 {
                                     var (ds, de, _, wt, app,
                                          uiRect, wr, wW, wH, uW, uH,
-                                         cLeft, cTop, cW, cH, dragBmp) = snapshot;
+                                         cLeft, cTop, cW, cH) = snapshot;
+
+                                    if (app == _ownProcessName) return;
+
+                                    // Give the UI time to settle after the drop before capturing
+                                    Thread.Sleep(200);
+
+                                    Bitmap? dragBmp = null;
+                                    try
+                                    {
+                                        dragBmp = new Bitmap(cW, cH, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                                        using (Graphics gfx = Graphics.FromImage(dragBmp))
+                                            gfx.CopyFromScreen(cLeft, cTop, 0, 0,
+                                                new System.Drawing.Size(cW, cH), CopyPixelOperation.SourceCopy);
+                                    }
+                                    catch
+                                    {
+                                        dragBmp?.Dispose();
+                                        dragBmp = null;
+                                    }
 
                                     // Resolve the UI element at the drag *end* point
                                     AutomationElement? element = GetElementFromPoint(new System.Drawing.Point(de.X, de.Y));
                                     string? elementName = null;
                                     string? elementType = null;
+                                    POINT arrowEnd = de;
                                     if (element != null)
                                     {
                                         try { elementName = element.Properties.Name.IsSupported ? element.Name : null; }
@@ -212,8 +227,6 @@ namespace BetterStepsRecorder
                                         try { elementType = element.Properties.ControlType.IsSupported ? element.ControlType.ToString() : null; }
                                         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element ControlType: {ex.Message}"); }
                                     }
-
-                                    if (app == _ownProcessName) { dragBmp?.Dispose(); return; }
 
                                     string stepText = $"In {app}, Drag from ({ds.X},{ds.Y}) to ({de.X},{de.Y})";
                                     if (!string.IsNullOrEmpty(elementName))
@@ -243,14 +256,14 @@ namespace BetterStepsRecorder
                                         _recordEvents.Add(recordEvent);
                                     }
 
-                                    // Annotate the drag screenshot with a drag arrow using crop offsets
+                                    // Annotate and store post-drop screenshot
                                     byte[]? pngBytes = null;
                                     if (dragBmp != null)
                                     {
                                         using (dragBmp)
                                         {
                                             using (Graphics gfx = Graphics.FromImage(dragBmp))
-                                                DrawDragArrow(gfx, cW, cH, cLeft, cTop, ds, de);
+                                                DrawDragArrow(gfx, cW, cH, cLeft, cTop, ds, arrowEnd);
                                             using (var ms = new System.IO.MemoryStream())
                                             {
                                                 dragBmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);

@@ -148,6 +148,7 @@ namespace BetterStepsRecorder
             }
         }
 
+
         /// <summary>
         /// Opens the HTML export options dialog
         /// </summary>

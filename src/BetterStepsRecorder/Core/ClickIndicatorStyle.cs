@@ -10,6 +10,7 @@ namespace BetterStepsRecorder
     public enum DragScreenshotMode
     {
         Cropped,
-        FullScreen
+        ActiveScreen,
+        AllScreens
     }
 }
