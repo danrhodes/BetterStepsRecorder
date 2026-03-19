@@ -28,6 +28,7 @@ namespace BetterStepsRecorder
                 ToolStripMenuItem_Recording.BackColor = Color.IndianRed;
                 ToolStripMenuItem_Recording.Image = Properties.Resources.RecordPauseTiny;
                 ActivityDelay = 15000;
+                WindowState = FormWindowState.Minimized;
             }
         }
 

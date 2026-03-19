@@ -18,6 +18,15 @@ namespace BetterStepsRecorder
         public static bool IsRecording = false;
         private static readonly string _ownProcessName = Process.GetCurrentProcess().ProcessName;
 
+        // Drag detection state
+        private const int DragThreshold = 10; // pixels before we treat as a drag
+        private static bool   _leftButtonDown = false;
+        private static bool   _isDragging     = false;
+        private static POINT  _dragStartPos;
+        private static RECT   _dragStartWinRect;
+        private static string? _dragStartWindowTitle;
+        private static string? _dragStartAppName;
+
         /// <summary>
         /// Sets up the mouse hook to start recording user interactions
         /// </summary>
@@ -79,157 +88,448 @@ namespace BetterStepsRecorder
             if (!IsRecording)
                 return CallNextHookEx(_hookID, nCode, wParam, lParam);
 
-            if (nCode >= 0 && (MouseMessages.WM_LBUTTONDOWN == (MouseMessages)wParam || MouseMessages.WM_RBUTTONUP == (MouseMessages)wParam))
+            if (nCode >= 0)
             {
-                POINT cursorPos;
-                if (GetCursorPos(out cursorPos))
+                var msg = (MouseMessages)wParam;
+
+                // ── Left button DOWN: remember start position, no I/O on the hook thread ──
+                if (msg == MouseMessages.WM_LBUTTONDOWN)
                 {
-                    IntPtr hwnd = WindowFromPoint(cursorPos);
-                    if (hwnd != IntPtr.Zero)
+                    POINT cursorPos;
+                    if (GetCursorPos(out cursorPos))
                     {
-                        // Capture cheap Win32 data synchronously so we return quickly
-                        string? windowTitle     = GetTopLevelWindowTitle(hwnd);
-                        string? applicationName = GetApplicationName(hwnd);
-                        string  clickType       = MouseMessages.WM_LBUTTONDOWN == (MouseMessages)wParam ? "Left Click" : "Right Click";
-
-                        GetWindowRect(hwnd, out RECT UIrect);
-                        RECT rect        = GetTopLevelWindowRect(hwnd);
-                        int  windowWidth = rect.Right  - rect.Left;
-                        int  windowHeight= rect.Bottom - rect.Top;
-                        int  UIWidth     = UIrect.Right  - UIrect.Left;
-                        int  UIHeight    = UIrect.Bottom - UIrect.Top;
-
-                        // Grab the raw pixels immediately in the hook before CallNextHookEx
-                        // delivers the event. For left-clicks this captures the dialog/button
-                        // before it dismisses; for right-clicks it captures before the context
-                        // menu disappears. CopyFromScreen is pure GDI and fast enough here.
-                        Bitmap? preClickBitmap = null;
-                        try
+                        IntPtr hwnd = WindowFromPoint(cursorPos);
+                        if (hwnd != IntPtr.Zero)
                         {
-                            preClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                            using (Graphics gfx = Graphics.FromImage(preClickBitmap))
-                                gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
-                                    new System.Drawing.Size(windowWidth, windowHeight),
-                                    CopyPixelOperation.SourceCopy);
+                            string? appName = GetApplicationName(hwnd);
+                            if (appName != _ownProcessName)
+                            {
+                                _leftButtonDown       = true;
+                                _isDragging           = false;
+                                _dragStartPos         = cursorPos;
+                                _dragStartWindowTitle = GetTopLevelWindowTitle(hwnd);
+                                _dragStartAppName     = appName;
+                                _dragStartWinRect     = GetTopLevelWindowRect(hwnd);
+                            }
                         }
-                        catch
+                    }
+                }
+
+                // ── Mouse MOVE: check if the threshold has been crossed while button is held ──
+                else if (msg == MouseMessages.WM_MOUSEMOVE && _leftButtonDown && !_isDragging)
+                {
+                    POINT cursorPos;
+                    if (GetCursorPos(out cursorPos))
+                    {
+                        int dx = cursorPos.X - _dragStartPos.X;
+                        int dy = cursorPos.Y - _dragStartPos.Y;
+                        if (dx * dx + dy * dy > DragThreshold * DragThreshold)
+                            _isDragging = true;
+                    }
+                }
+
+                // ── Left button UP: commit click or drag ──
+                else if (msg == MouseMessages.WM_LBUTTONUP && _leftButtonDown)
+                {
+                    _leftButtonDown = false;
+                    bool wasDragging = _isDragging;
+                    _isDragging = false;
+
+                    POINT cursorPos;
+                    if (GetCursorPos(out cursorPos))
+                    {
+                        IntPtr hwnd = WindowFromPoint(cursorPos);
+                        if (hwnd != IntPtr.Zero)
                         {
-                            preClickBitmap?.Dispose();
-                            preClickBitmap = null;
-                        }
-
-                        // Capture a snapshot of all values needed by the background thread
-                        var snapshot = (
-                            cursorPos, hwnd, windowTitle, applicationName, clickType,
-                            UIrect, rect, windowWidth, windowHeight, UIWidth, UIHeight,
-                            preClickBitmap
-                        );
-
-                        // Offload the slow work (FlaUI UI Automation + PNG encode) to a
-                        // ThreadPool thread so the hook callback returns immediately.
-                        // Windows unhooks any hook that blocks for too long (~300 ms).
-                        ThreadPool.QueueUserWorkItem(_ =>
-                        {
-                            var (cp, _, wt, appName, ct,
-                                 uiRect, winRect, winW, winH, uiW, uiH,
-                                 preBitmap) = snapshot;
-
-                            // FlaUI call — can block for hundreds of ms on complex UIs
-                            AutomationElement? element = GetElementFromPoint(
-                                new System.Drawing.Point(cp.X, cp.Y));
-
-                            string? elementName = null;
-                            string? elementType = null;
-                            if (element != null)
+                            if (wasDragging)
                             {
-                                try { elementName = element.Properties.Name.IsSupported ? element.Name : null; }
-                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element Name: {ex.Message}"); }
-                                try { elementType = element.Properties.ControlType.IsSupported ? element.ControlType.ToString() : null; }
-                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element ControlType: {ex.Message}"); }
-                            }
+                                // ── Record a drag event ──
+                                POINT dragStart     = _dragStartPos;
+                                POINT dragEnd       = cursorPos;
+                                RECT  winRect       = _dragStartWinRect;
+                                string? windowTitle = _dragStartWindowTitle;
+                                string? appName     = _dragStartAppName;
 
-                            // Skip if this click is to our own app
-                            if (appName == _ownProcessName)
-                            {
-                                preBitmap?.Dispose();
-                                return;
-                            }
+                                int winW = winRect.Right  - winRect.Left;
+                                int winH = winRect.Bottom - winRect.Top;
 
-                            RecordEvent recordEvent;
-                            lock (_recordEventsLock)
-                            {
-                                recordEvent = new RecordEvent
+                                GetWindowRect(hwnd, out RECT endUIrect);
+                                int uiW = endUIrect.Right  - endUIrect.Left;
+                                int uiH = endUIrect.Bottom - endUIrect.Top;
+
+                                // Capture region: padded crop, the screen containing the drag end, or all screens
+                                int cropLeft, cropTop, cropW, cropH;
+                                if (DragScreenshotMode == DragScreenshotMode.AllScreens)
                                 {
-                                    WindowTitle        = wt,
-                                    ApplicationName    = appName,
-                                    WindowCoordinates  = new RECT { Left = winRect.Left, Top = winRect.Top, Bottom = winRect.Bottom, Right = winRect.Right },
-                                    WindowSize         = new Size { Width = winW, Height = winH },
-                                    UICoordinates      = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
-                                    UISize             = new Size { Width = uiW, Height = uiH },
-                                    UIElement          = null, // not needed after name/type extracted; releasing COM object
-                                    ElementName        = elementName,
-                                    ElementType        = elementType,
-                                    MouseCoordinates   = new POINT { X = cp.X, Y = cp.Y },
-                                    EventType          = ct,
-                                    _StepText          = $"In {appName}, {ct} on {elementType} {elementName}",
-                                    Step               = _recordEvents.Count + 1
-                                };
-                                _recordEvents.Add(recordEvent);
-                            }
-
-                            // Screen capture: use the pre-captured bitmap (taken synchronously before
-                            // CallNextHookEx so dialogs/buttons are still visible), falling back to
-                            // a live capture if the pre-capture failed for any reason.
-                            // PNG bytes are spooled to disk immediately so they don't stay in RAM.
-                            byte[]? pngBytes = null;
-                            if (preBitmap != null)
-                            {
-                                using (preBitmap)
-                                {
-                                    using (Graphics gfx = Graphics.FromImage(preBitmap))
-                                        DrawArrowAtCursor(gfx, winW, winH, winRect.Left, winRect.Top, cp);
-                                    using (var ms = new System.IO.MemoryStream())
-                                    {
-                                        preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                                        pngBytes = ms.ToArray();
-                                    }
+                                    cropLeft = SystemInformation.VirtualScreen.Left;
+                                    cropTop  = SystemInformation.VirtualScreen.Top;
+                                    cropW    = SystemInformation.VirtualScreen.Width;
+                                    cropH    = SystemInformation.VirtualScreen.Height;
                                 }
+                                else if (DragScreenshotMode == DragScreenshotMode.ActiveScreen)
+                                {
+                                    // Use the screen that contains the drag end point
+                                    var screen = Screen.FromPoint(new System.Drawing.Point(dragEnd.X, dragEnd.Y));
+                                    cropLeft = screen.Bounds.Left;
+                                    cropTop  = screen.Bounds.Top;
+                                    cropW    = screen.Bounds.Width;
+                                    cropH    = screen.Bounds.Height;
+                                }
+                                else
+                                {
+                                    const int DragPad = 120;
+                                    int cropRight  = Math.Min(SystemInformation.VirtualScreen.Right,  Math.Max(dragStart.X, dragEnd.X) + DragPad);
+                                    int cropBottom = Math.Min(SystemInformation.VirtualScreen.Bottom, Math.Max(dragStart.Y, dragEnd.Y) + DragPad);
+                                    cropLeft = Math.Max(SystemInformation.VirtualScreen.Left, Math.Min(dragStart.X, dragEnd.X) - DragPad);
+                                    cropTop  = Math.Max(SystemInformation.VirtualScreen.Top,  Math.Min(dragStart.Y, dragEnd.Y) - DragPad);
+                                    cropW = cropRight  - cropLeft;
+                                    cropH = cropBottom - cropTop;
+                                }
+
+                                var snapshot = (dragStart, dragEnd, hwnd, windowTitle, appName,
+                                                endUIrect, winRect, winW, winH, uiW, uiH,
+                                                cropLeft, cropTop, cropW, cropH);
+
+                                ThreadPool.QueueUserWorkItem(_ =>
+                                {
+                                    var (ds, de, _, wt, app,
+                                         uiRect, wr, wW, wH, uW, uH,
+                                         cLeft, cTop, cW, cH) = snapshot;
+
+                                    if (app == _ownProcessName) return;
+
+                                    // Give the UI time to settle after the drop before capturing
+                                    Thread.Sleep(200);
+
+                                    Bitmap? dragBmp = null;
+                                    try
+                                    {
+                                        dragBmp = new Bitmap(cW, cH, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                                        using (Graphics gfx = Graphics.FromImage(dragBmp))
+                                            gfx.CopyFromScreen(cLeft, cTop, 0, 0,
+                                                new System.Drawing.Size(cW, cH), CopyPixelOperation.SourceCopy);
+                                    }
+                                    catch
+                                    {
+                                        dragBmp?.Dispose();
+                                        dragBmp = null;
+                                    }
+
+                                    // Resolve the UI element at the drag *end* point
+                                    AutomationElement? element = GetElementFromPoint(new System.Drawing.Point(de.X, de.Y));
+                                    string? elementName = null;
+                                    string? elementType = null;
+                                    POINT arrowEnd = de;
+                                    if (element != null)
+                                    {
+                                        try { elementName = element.Properties.Name.IsSupported ? element.Name : null; }
+                                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element Name: {ex.Message}"); }
+                                        try { elementType = element.Properties.ControlType.IsSupported ? element.ControlType.ToString() : null; }
+                                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element ControlType: {ex.Message}"); }
+                                    }
+
+                                    string stepText = $"In {app}, Drag from ({ds.X},{ds.Y}) to ({de.X},{de.Y})";
+                                    if (!string.IsNullOrEmpty(elementName))
+                                        stepText = $"In {app}, Drag to {elementType} {elementName}";
+
+                                    RecordEvent recordEvent;
+                                    lock (_recordEventsLock)
+                                    {
+                                        recordEvent = new RecordEvent
+                                        {
+                                            WindowTitle       = wt,
+                                            ApplicationName   = app,
+                                            WindowCoordinates = new RECT { Left = wr.Left, Top = wr.Top, Bottom = wr.Bottom, Right = wr.Right },
+                                            WindowSize        = new Size { Width = wW, Height = wH },
+                                            UICoordinates     = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
+                                            UISize            = new Size { Width = uW, Height = uH },
+                                            UIElement         = null,
+                                            ElementName       = elementName,
+                                            ElementType       = elementType,
+                                            MouseCoordinates  = new POINT { X = de.X, Y = de.Y },
+                                            DragStartCoordinates = new POINT { X = ds.X, Y = ds.Y },
+                                            DragEndCoordinates   = new POINT { X = de.X, Y = de.Y },
+                                            EventType         = "Drag",
+                                            _StepText         = stepText,
+                                            Step              = _recordEvents.Count + 1
+                                        };
+                                        _recordEvents.Add(recordEvent);
+                                    }
+
+                                    // Annotate and store post-drop screenshot
+                                    byte[]? pngBytes = null;
+                                    if (dragBmp != null)
+                                    {
+                                        using (dragBmp)
+                                        {
+                                            using (Graphics gfx = Graphics.FromImage(dragBmp))
+                                                DrawDragArrow(gfx, cW, cH, cLeft, cTop, ds, arrowEnd);
+                                            using (var ms = new System.IO.MemoryStream())
+                                            {
+                                                dragBmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                                pngBytes = ms.ToArray();
+                                            }
+                                        }
+                                    }
+
+                                    if (pngBytes != null)
+                                    {
+                                        string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                        if (spoolPath != null)
+                                            recordEvent.ScreenshotSpoolPath = spoolPath;
+                                        else
+                                            recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+                                        pngBytes = null;
+                                    }
+
+                                    GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+
+                                    _form1Instance?.BeginInvoke((Action)(() =>
+                                    {
+                                        _form1Instance.AddRecordEventToListBox(recordEvent);
+                                        _form1Instance.activityTimer.Stop();
+                                        _form1Instance.activityTimer.Start();
+                                    }));
+                                });
                             }
                             else
                             {
-                                // Fall back to live capture — returns base64; convert to bytes
-                                string? b64 = SaveScreenRegionScreenshot(
-                                    winRect.Left, winRect.Top, winW, winH, recordEvent.ID, cp);
-                                if (b64 != null)
-                                    pngBytes = Convert.FromBase64String(b64);
+                                // ── Plain left click — same as the original WM_LBUTTONDOWN path ──
+                                string? windowTitle     = GetTopLevelWindowTitle(hwnd);
+                                string? applicationName = GetApplicationName(hwnd);
+                                string  clickType       = "Left Click";
+
+                                GetWindowRect(hwnd, out RECT UIrect);
+                                RECT rect         = GetTopLevelWindowRect(hwnd);
+                                int  windowWidth  = rect.Right  - rect.Left;
+                                int  windowHeight = rect.Bottom - rect.Top;
+                                int  UIWidth      = UIrect.Right  - UIrect.Left;
+                                int  UIHeight     = UIrect.Bottom - UIrect.Top;
+
+                                Bitmap? preClickBitmap = null;
+                                try
+                                {
+                                    preClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                                    using (Graphics gfx = Graphics.FromImage(preClickBitmap))
+                                        gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
+                                            new System.Drawing.Size(windowWidth, windowHeight),
+                                            CopyPixelOperation.SourceCopy);
+                                }
+                                catch
+                                {
+                                    preClickBitmap?.Dispose();
+                                    preClickBitmap = null;
+                                }
+
+                                var snapshot = (cursorPos, hwnd, windowTitle, applicationName, clickType,
+                                                UIrect, rect, windowWidth, windowHeight, UIWidth, UIHeight,
+                                                preClickBitmap);
+
+                                ThreadPool.QueueUserWorkItem(_ =>
+                                {
+                                    var (cp, _, wt, appName, ct,
+                                         uiRect, winRect, winW, winH, uiW, uiH,
+                                         preBitmap) = snapshot;
+
+                                    AutomationElement? element = GetElementFromPoint(new System.Drawing.Point(cp.X, cp.Y));
+                                    string? elementName = null;
+                                    string? elementType = null;
+                                    if (element != null)
+                                    {
+                                        try { elementName = element.Properties.Name.IsSupported ? element.Name : null; }
+                                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element Name: {ex.Message}"); }
+                                        try { elementType = element.Properties.ControlType.IsSupported ? element.ControlType.ToString() : null; }
+                                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element ControlType: {ex.Message}"); }
+                                    }
+
+                                    if (appName == _ownProcessName) { preBitmap?.Dispose(); return; }
+
+                                    RecordEvent recordEvent;
+                                    lock (_recordEventsLock)
+                                    {
+                                        recordEvent = new RecordEvent
+                                        {
+                                            WindowTitle        = wt,
+                                            ApplicationName    = appName,
+                                            WindowCoordinates  = new RECT { Left = winRect.Left, Top = winRect.Top, Bottom = winRect.Bottom, Right = winRect.Right },
+                                            WindowSize         = new Size { Width = winW, Height = winH },
+                                            UICoordinates      = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
+                                            UISize             = new Size { Width = uiW, Height = uiH },
+                                            UIElement          = null,
+                                            ElementName        = elementName,
+                                            ElementType        = elementType,
+                                            MouseCoordinates   = new POINT { X = cp.X, Y = cp.Y },
+                                            EventType          = ct,
+                                            _StepText          = $"In {appName}, {ct} on {elementType} {elementName}",
+                                            Step               = _recordEvents.Count + 1
+                                        };
+                                        _recordEvents.Add(recordEvent);
+                                    }
+
+                                    byte[]? pngBytes = null;
+                                    if (preBitmap != null)
+                                    {
+                                        using (preBitmap)
+                                        {
+                                            using (Graphics gfx = Graphics.FromImage(preBitmap))
+                                                DrawArrowAtCursor(gfx, winW, winH, winRect.Left, winRect.Top, cp);
+                                            using (var ms = new System.IO.MemoryStream())
+                                            {
+                                                preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                                pngBytes = ms.ToArray();
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        string? b64 = SaveScreenRegionScreenshot(winRect.Left, winRect.Top, winW, winH, recordEvent.ID, cp);
+                                        if (b64 != null) pngBytes = Convert.FromBase64String(b64);
+                                    }
+
+                                    if (pngBytes != null)
+                                    {
+                                        string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                        if (spoolPath != null)
+                                            recordEvent.ScreenshotSpoolPath = spoolPath;
+                                        else
+                                            recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+                                        pngBytes = null;
+                                    }
+
+                                    GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+
+                                    _form1Instance?.BeginInvoke((Action)(() =>
+                                    {
+                                        _form1Instance.AddRecordEventToListBox(recordEvent);
+                                        _form1Instance.activityTimer.Stop();
+                                        _form1Instance.activityTimer.Start();
+                                    }));
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // ── Right click (unchanged) ──
+                else if (msg == MouseMessages.WM_RBUTTONUP)
+                {
+                    POINT cursorPos;
+                    if (GetCursorPos(out cursorPos))
+                    {
+                        IntPtr hwnd = WindowFromPoint(cursorPos);
+                        if (hwnd != IntPtr.Zero)
+                        {
+                            string? windowTitle     = GetTopLevelWindowTitle(hwnd);
+                            string? applicationName = GetApplicationName(hwnd);
+                            string  clickType       = "Right Click";
+
+                            GetWindowRect(hwnd, out RECT UIrect);
+                            RECT rect         = GetTopLevelWindowRect(hwnd);
+                            int  windowWidth  = rect.Right  - rect.Left;
+                            int  windowHeight = rect.Bottom - rect.Top;
+                            int  UIWidth      = UIrect.Right  - UIrect.Left;
+                            int  UIHeight     = UIrect.Bottom - UIrect.Top;
+
+                            Bitmap? preClickBitmap = null;
+                            try
+                            {
+                                preClickBitmap = new Bitmap(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                                using (Graphics gfx = Graphics.FromImage(preClickBitmap))
+                                    gfx.CopyFromScreen(rect.Left, rect.Top, 0, 0,
+                                        new System.Drawing.Size(windowWidth, windowHeight),
+                                        CopyPixelOperation.SourceCopy);
+                            }
+                            catch
+                            {
+                                preClickBitmap?.Dispose();
+                                preClickBitmap = null;
                             }
 
-                            if (pngBytes != null)
+                            var snapshot = (cursorPos, hwnd, windowTitle, applicationName, clickType,
+                                            UIrect, rect, windowWidth, windowHeight, UIWidth, UIHeight,
+                                            preClickBitmap);
+
+                            ThreadPool.QueueUserWorkItem(_ =>
                             {
-                                // Try to spool to disk; fall back to RAM if spool write fails
-                                string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
-                                if (spoolPath != null)
-                                    recordEvent.ScreenshotSpoolPath = spoolPath;
+                                var (cp, _, wt, appName, ct,
+                                     uiRect, winRect, winW, winH, uiW, uiH,
+                                     preBitmap) = snapshot;
+
+                                AutomationElement? element = GetElementFromPoint(new System.Drawing.Point(cp.X, cp.Y));
+                                string? elementName = null;
+                                string? elementType = null;
+                                if (element != null)
+                                {
+                                    try { elementName = element.Properties.Name.IsSupported ? element.Name : null; }
+                                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element Name: {ex.Message}"); }
+                                    try { elementType = element.Properties.ControlType.IsSupported ? element.ControlType.ToString() : null; }
+                                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not read element ControlType: {ex.Message}"); }
+                                }
+
+                                if (appName == _ownProcessName) { preBitmap?.Dispose(); return; }
+
+                                RecordEvent recordEvent;
+                                lock (_recordEventsLock)
+                                {
+                                    recordEvent = new RecordEvent
+                                    {
+                                        WindowTitle        = wt,
+                                        ApplicationName    = appName,
+                                        WindowCoordinates  = new RECT { Left = winRect.Left, Top = winRect.Top, Bottom = winRect.Bottom, Right = winRect.Right },
+                                        WindowSize         = new Size { Width = winW, Height = winH },
+                                        UICoordinates      = new RECT { Left = uiRect.Left, Top = uiRect.Top, Bottom = uiRect.Bottom, Right = uiRect.Right },
+                                        UISize             = new Size { Width = uiW, Height = uiH },
+                                        UIElement          = null,
+                                        ElementName        = elementName,
+                                        ElementType        = elementType,
+                                        MouseCoordinates   = new POINT { X = cp.X, Y = cp.Y },
+                                        EventType          = ct,
+                                        _StepText          = $"In {appName}, {ct} on {elementType} {elementName}",
+                                        Step               = _recordEvents.Count + 1
+                                    };
+                                    _recordEvents.Add(recordEvent);
+                                }
+
+                                byte[]? pngBytes = null;
+                                if (preBitmap != null)
+                                {
+                                    using (preBitmap)
+                                    {
+                                        using (Graphics gfx = Graphics.FromImage(preBitmap))
+                                            DrawArrowAtCursor(gfx, winW, winH, winRect.Left, winRect.Top, cp);
+                                        using (var ms = new System.IO.MemoryStream())
+                                        {
+                                            preBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                            pngBytes = ms.ToArray();
+                                        }
+                                    }
+                                }
                                 else
-                                    recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+                                {
+                                    string? b64 = SaveScreenRegionScreenshot(winRect.Left, winRect.Top, winW, winH, recordEvent.ID, cp);
+                                    if (b64 != null) pngBytes = Convert.FromBase64String(b64);
+                                }
 
-                                // Release the large byte array immediately — it was either written to
-                                // disk or encoded into base64; either way we no longer need the raw bytes.
-                                pngBytes = null;
-                            }
+                                if (pngBytes != null)
+                                {
+                                    string? spoolPath = SpoolScreenshot(pngBytes, recordEvent.ID);
+                                    if (spoolPath != null)
+                                        recordEvent.ScreenshotSpoolPath = spoolPath;
+                                    else
+                                        recordEvent.Screenshotb64 = Convert.ToBase64String(pngBytes);
+                                    pngBytes = null;
+                                }
 
-                            // The PNG byte array is large (LOH eligible at >85KB). Nudge the GC to
-                            // collect it promptly rather than waiting for the next scheduled Gen2.
-                            GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+                                GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
 
-                            // Marshal UI update back to the UI thread (non-blocking — don't Invoke)
-                            _form1Instance?.BeginInvoke((Action)(() =>
-                            {
-                                _form1Instance.AddRecordEventToListBox(recordEvent);
-                                _form1Instance.activityTimer.Stop();
-                                _form1Instance.activityTimer.Start();
-                            }));
-                        });
+                                _form1Instance?.BeginInvoke((Action)(() =>
+                                {
+                                    _form1Instance.AddRecordEventToListBox(recordEvent);
+                                    _form1Instance.activityTimer.Stop();
+                                    _form1Instance.activityTimer.Start();
+                                }));
+                            });
+                        }
                     }
                 }
             }

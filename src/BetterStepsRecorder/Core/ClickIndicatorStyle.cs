@@ -6,4 +6,11 @@ namespace BetterStepsRecorder
         Circle,
         Cursor
     }
+
+    public enum DragScreenshotMode
+    {
+        Cropped,
+        ActiveScreen,
+        AllScreens
+    }
 }
