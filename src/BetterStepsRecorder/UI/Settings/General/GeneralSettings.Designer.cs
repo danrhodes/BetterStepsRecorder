@@ -35,6 +35,7 @@ namespace BetterStepsRecorder.UI.Settings
             rbMinimizeToTaskbar = new RadioButton();
             rbMinimizeToSystemTray = new RadioButton();
             chkAllowRecordSelf = new CheckBox();
+            chkCheckForUpdatesAtLaunch = new CheckBox();
             grpMinimizeBehavior.SuspendLayout();
             SuspendLayout();
             // 
@@ -105,7 +106,7 @@ namespace BetterStepsRecorder.UI.Settings
             rbMinimizeToSystemTray.CheckedChanged += RadioButton_CheckedChanged;
             // 
             // chkAllowRecordSelf
-            // 
+            //
             chkAllowRecordSelf.AutoSize = true;
             chkAllowRecordSelf.Location = new Point(20, 230);
             chkAllowRecordSelf.Name = "chkAllowRecordSelf";
@@ -114,17 +115,29 @@ namespace BetterStepsRecorder.UI.Settings
             chkAllowRecordSelf.Text = "Allow recording BSR itself";
             chkAllowRecordSelf.UseVisualStyleBackColor = true;
             chkAllowRecordSelf.CheckedChanged += Checkbox_CheckedChanged;
-            // 
+            //
+            // chkCheckForUpdatesAtLaunch
+            //
+            chkCheckForUpdatesAtLaunch.AutoSize = true;
+            chkCheckForUpdatesAtLaunch.Location = new Point(20, 260);
+            chkCheckForUpdatesAtLaunch.Name = "chkCheckForUpdatesAtLaunch";
+            chkCheckForUpdatesAtLaunch.Size = new Size(220, 24);
+            chkCheckForUpdatesAtLaunch.TabIndex = 4;
+            chkCheckForUpdatesAtLaunch.Text = "Check for updates at launch";
+            chkCheckForUpdatesAtLaunch.UseVisualStyleBackColor = true;
+            chkCheckForUpdatesAtLaunch.CheckedChanged += chkCheckForUpdatesAtLaunch_CheckedChanged;
+            //
             // GeneralSettings
-            // 
+            //
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
+            Controls.Add(chkCheckForUpdatesAtLaunch);
             Controls.Add(chkAllowRecordSelf);
             Controls.Add(grpMinimizeBehavior);
             Controls.Add(lblRecording);
             Controls.Add(lblNote);
             Name = "GeneralSettings";
-            Size = new Size(472, 280);
+            Size = new Size(472, 300);
             grpMinimizeBehavior.ResumeLayout(false);
             grpMinimizeBehavior.PerformLayout();
             ResumeLayout(false);
@@ -140,5 +153,6 @@ namespace BetterStepsRecorder.UI.Settings
         private RadioButton rbMinimizeToTaskbar;
         private RadioButton rbMinimizeToSystemTray;
         private CheckBox chkAllowRecordSelf;
+        private CheckBox chkCheckForUpdatesAtLaunch;
     }
 }

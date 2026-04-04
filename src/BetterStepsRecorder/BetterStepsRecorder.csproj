@@ -45,4 +45,19 @@
     </EmbeddedResource>
   </ItemGroup>
 
+
+  <Target Name="BuildUpdater" BeforeTargets="Build">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Updater\Updater.csproj"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
+
+  <Target Name="CopyUpdater" AfterTargets="BuildUpdater">
+    <PropertyGroup>
+      <_UpdaterOut>$(MSBuildThisFileDirectory)..\Updater\bin\$(Configuration)\net10.0-windows7.0\</_UpdaterOut>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_UpdaterOut)Updater.exe;$(_UpdaterOut)Updater.dll;$(_UpdaterOut)Updater.runtimeconfig.json;$(_UpdaterOut)Updater.deps.json"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

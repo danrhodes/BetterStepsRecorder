@@ -13,6 +13,7 @@ namespace BetterStepsRecorder
         {
             public MinimizeBehavior MinimizeOnStartRecording { get; set; } = MinimizeBehavior.MinimizeToTaskbar;
             public bool AllowRecordSelf { get; set; } = false;
+            public bool CheckForUpdatesAtLaunch { get; set; } = true;
         }
 
         // ══════════════════════════════════════════════════════════════════════

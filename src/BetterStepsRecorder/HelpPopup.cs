@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Reflection;
-using System.Text;
+using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -13,34 +7,72 @@ namespace BetterStepsRecorder
 {
     public partial class HelpPopup : Form
     {
+        private const string RepoUrl = "https://github.com/Mentaleak/BetterStepsRecorder";
+        private const string ReleasesUrl = RepoUrl + "/releases";
+
+        private string _pendingDownloadUrl = string.Empty;
+
         public HelpPopup()
         {
             InitializeComponent();
         }
 
-        private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) => OpenUrl(RepoUrl);
+        private void linkLabelReleasesPage_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) => OpenUrl(ReleasesUrl);
+        private void button_CloseHelp_Click(object sender, EventArgs e) => Close();
+
+        private static void OpenUrl(string url) =>
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+
+        private async void HelpPopup_Load(object sender, EventArgs e)
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            string version = UpdaterService.CurrentVersion?.ToString() ?? "Unknown Version";
+            VersionLabel.Text = $"Version: {version}";
+            await RunUpdateCheckAsync();
+        }
+
+        private async Task RunUpdateCheckAsync()
+        {
+            labelUpdateStatus.Text = "Checking for updates…";
+            buttonDownloadInstall.Visible = false;
+            linkLabelReleasesPage.Visible = false;
+
+            UpdateCheckResult result = await UpdaterService.CheckForUpdateAsync();
+
+            if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
-                FileName = "https://github.com/Mentaleak/BetterStepsRecorder",
-                UseShellExecute = true
-            });
+                labelUpdateStatus.Text = "Could not check for updates.";
+                linkLabelReleasesPage.Text = "Download from GitHub";
+                linkLabelReleasesPage.Visible = true;
+            }
+            else if (result.IsUpdateAvailable)
+            {
+                labelUpdateStatus.Text = $"Version {result.LatestVersion} is available.";
+                _pendingDownloadUrl = result.DownloadUrl;
+                buttonDownloadInstall.Visible = true;
+            }
+            else
+            {
+                labelUpdateStatus.Text = "You are on the latest version.";
+            }
         }
 
-        private void button_CloseHelp_Click(object sender, EventArgs e)
+        private async void buttonDownloadInstall_Click(object sender, EventArgs e)
         {
-            this.Close();
-        }
+            buttonDownloadInstall.Enabled = false;
+            buttonDownloadInstall.Text = "Updating…";
+            linkLabelReleasesPage.Visible = false;
 
-        private string GetVersion()
-        {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-            return version != null ? version.ToString() : "Unknown Version";
-        }
+            bool success = await UpdaterService.DownloadAndApplyUpdateAsync(_pendingDownloadUrl);
 
-        private void HelpPopup_Load(object sender, EventArgs e)
-        {
-            VersionLabel.Text = $"Version: {GetVersion()}";
+            if (!success)
+            {
+                labelUpdateStatus.Text = "Update failed.";
+                buttonDownloadInstall.Visible = false;
+                linkLabelReleasesPage.Text = "Download from GitHub";
+                linkLabelReleasesPage.Visible = true;
+            }
+            // On success the app shuts down — we never reach here.
         }
     }
 }

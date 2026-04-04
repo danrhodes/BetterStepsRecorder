@@ -37,13 +37,28 @@ namespace BetterStepsRecorder
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "BetterStepsRecorder", "spool", Guid.NewGuid().ToString("N"));
 
+        private const string ArgForceUpdate = "--force-update-check";
+        private const string ArgTestUpdate = "--test-update-check";
+
         [STAThread]
         static void Main()
         {
+            // Parse CLI flags before anything else
+            foreach (string arg in Environment.GetCommandLineArgs())
+            {
+                if (arg.Equals(ArgForceUpdate, StringComparison.OrdinalIgnoreCase))
+                    UpdaterService.ForceUpdateCheck = true;
+                else if (arg.Equals(ArgTestUpdate, StringComparison.OrdinalIgnoreCase))
+                    UpdaterService.TestUpdateCheck = true;
+            }
+
             ApplicationConfiguration.Initialize();
 
             // Load persisted recording settings (singleton pattern - loads once)
             _ = BSRSettings.Current;
+
+            // Load persisted update state
+            UpdateState updateState = UpdateState.Load();
 
             // Create the spool directory for this session
             Directory.CreateDirectory(SessionSpoolDir);
@@ -52,6 +67,29 @@ namespace BetterStepsRecorder
             CleanOldSpoolSessions();
 
             _form1Instance = new MainForm();
+
+            // Wire up post-show update logic before Application.Run blocks
+            _form1Instance.Shown += async (s, e) =>
+            {
+                // Silent install path — runs before standard check
+                if (updateState.SilentInstallOnNextLaunch &&
+                    !string.IsNullOrEmpty(updateState.PendingUpdateUrl))
+                {
+                    string pendingUrl = updateState.PendingUpdateUrl;
+                    // Clear state first so a failure does not loop
+                    updateState.Clear();
+
+                    bool installed = await UpdaterService.DownloadAndApplyUpdateAsync(pendingUrl);
+                    if (installed)
+                        return; // App is shutting down
+                }
+
+                // Standard launch-time check
+                if (BSRSettings.Current.General.CheckForUpdatesAtLaunch)
+                {
+                    _ = CheckAndShowBannerAsync(updateState);
+                }
+            };
 
             Application.Run(_form1Instance);
 
@@ -87,6 +125,23 @@ namespace BetterStepsRecorder
         {
             try { if (Directory.Exists(path)) Directory.Delete(path, true); }
             catch { /* ignore */ }
+        }
+
+        private static async System.Threading.Tasks.Task CheckAndShowBannerAsync(UpdateState updateState)
+        {
+            try
+            {
+                UpdateCheckResult result = await UpdaterService.CheckForUpdateAsync();
+                if (result.IsUpdateAvailable && _form1Instance != null && !_form1Instance.IsDisposed)
+                {
+                    _form1Instance.Invoke(() =>
+                        _form1Instance.ShowUpdateBanner(result.LatestVersion, result.DownloadUrl, updateState));
+                }
+            }
+            catch
+            {
+                // Silently swallowed — app continues normally
+            }
         }
 
     }

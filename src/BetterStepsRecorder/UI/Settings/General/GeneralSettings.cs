@@ -23,6 +23,7 @@ namespace BetterStepsRecorder.UI.Settings
             rbMinimizeToTaskbar.Checked = behavior == MinimizeBehavior.MinimizeToTaskbar;
             rbMinimizeToSystemTray.Checked = behavior == MinimizeBehavior.MinimizeToSystemTray;
             chkAllowRecordSelf.Checked = BSRSettings.Current.General.AllowRecordSelf;
+            chkCheckForUpdatesAtLaunch.Checked = BSRSettings.Current.General.CheckForUpdatesAtLaunch;
         }
 
         private void RadioButton_CheckedChanged(object sender, EventArgs e)
@@ -43,6 +44,12 @@ namespace BetterStepsRecorder.UI.Settings
         private void Checkbox_CheckedChanged(object sender, EventArgs e)
         {
             BSRSettings.Current.General.AllowRecordSelf = chkAllowRecordSelf.Checked;
+            BSRSettings.Current.Save();
+        }
+
+        private void chkCheckForUpdatesAtLaunch_CheckedChanged(object sender, EventArgs e)
+        {
+            BSRSettings.Current.General.CheckForUpdatesAtLaunch = chkCheckForUpdatesAtLaunch.Checked;
             BSRSettings.Current.Save();
         }
     }

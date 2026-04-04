@@ -117,6 +117,10 @@ namespace BetterStepsRecorder
                 case "Screenshot.Drag.Cropped.Padding":
                     Screenshot.Drag.Cropped.Padding = Default.Screenshot.Drag.Cropped.Padding;
                     break;
+                case "CheckForUpdatesAtLaunch":
+                case "General.CheckForUpdatesAtLaunch":
+                    General.CheckForUpdatesAtLaunch = Default.General.CheckForUpdatesAtLaunch;
+                    break;
             }
         }
 
