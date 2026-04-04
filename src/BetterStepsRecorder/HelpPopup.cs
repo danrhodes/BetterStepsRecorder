@@ -19,7 +19,6 @@ namespace BetterStepsRecorder
 
         private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) => OpenUrl(RepoUrl);
         private void linkLabelReleasesPage_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) => OpenUrl(ReleasesUrl);
-        private void button_CloseHelp_Click(object sender, EventArgs e) => Close();
 
         private static void OpenUrl(string url) =>
             Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });

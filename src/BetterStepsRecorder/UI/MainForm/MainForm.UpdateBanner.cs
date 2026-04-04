@@ -87,9 +87,9 @@ namespace BetterStepsRecorder
                 {
                     // Show inline error — do NOT shut down
                     lblMsg.Text = "Update failed.";
-                    lblError.Visible = false;
                     lnkFallback.Visible = true;
                     btnUpdate.Visible = false;
+                    btnPostpone.Enabled = true;
                 }
                 // On success the app is shutting down — we never reach here.
             };
